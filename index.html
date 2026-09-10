@@ -227,8 +227,8 @@
                     <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mb-6 shadow-xl overflow-hidden p-2">
                       <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain" />
                     </div>
-                    <h1 className="text-5xl font-bold mb-4 leading-tight">SMP NEGERI 2 ENDE<br/>Portal Nilai Sumatif</h1>
-                    <p className="text-xl text-indigo-100 max-w-md">Sistem Informasi Pengolahan Nilai Sumatif Terpadu. Dirancang untuk Memudahkan Pendidik dalam Mengolah Nilai Sumatif.</p>
+                    <h1 className="text-5xl font-bold mb-4 leading-tight">SMP NEGERI 2 ENDE<br/>PORTAL NILAI SUMATIF</h1>
+                    <p className="text-xl text-indigo-100 max-w-md">Sistem Informasi Pengolahan Nilai Sumatif Terpadu. Akses Berbasis Penugasan Mengajar.</p>
                   </div>
                 </div>
                 
@@ -1288,32 +1288,32 @@
                           <div className="bg-green-50 p-4 rounded-xl border border-green-200">
                              <label className="block text-sm font-bold text-green-800 mb-1">A (Sangat Baik)</label>
                              <div className="flex items-center gap-2">
-                                <input type="number" className="w-16 border border-green-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.aMin} readOnly />
+                                <input type="number" className="w-16 border border-green-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.aMin} onChange={e=>setKktpForm({...kktpForm, aMin: e.target.value})} />
                                 <span className="text-xs text-gray-500">-</span>
-                                <input type="number" className="w-16 border border-green-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.aMax} readOnly />
+                                <input type="number" className="w-16 border border-green-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.aMax} onChange={e=>setKktpForm({...kktpForm, aMax: e.target.value})} />
                              </div>
                           </div>
                           <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
                              <label className="block text-sm font-bold text-blue-800 mb-1">B (Baik)</label>
                              <div className="flex items-center gap-2">
-                                <input type="number" className="w-16 border border-blue-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.bMin} readOnly />
+                                <input type="number" className="w-16 border border-blue-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.bMin} onChange={e=>setKktpForm({...kktpForm, bMin: e.target.value})} />
                                 <span className="text-xs text-gray-500">-</span>
-                                <input type="number" className="w-16 border border-blue-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.bMax} readOnly />
+                                <input type="number" className="w-16 border border-blue-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.bMax} onChange={e=>setKktpForm({...kktpForm, bMax: e.target.value})} />
                              </div>
                           </div>
                           <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200">
                              <label className="block text-sm font-bold text-yellow-800 mb-1">C (Cukup)</label>
                              <div className="flex items-center gap-2">
-                                <input type="number" className="w-16 border border-yellow-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.cMin} readOnly />
+                                <input type="number" className="w-16 border border-yellow-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.cMin} onChange={e=>setKktpForm({...kktpForm, cMin: e.target.value})} />
                                 <span className="text-xs text-gray-500">-</span>
-                                <input type="number" className="w-16 border border-yellow-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.cMax} readOnly />
+                                <input type="number" className="w-16 border border-yellow-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.cMax} onChange={e=>setKktpForm({...kktpForm, cMax: e.target.value})} />
                              </div>
                           </div>
                           <div className="bg-red-50 p-4 rounded-xl border border-red-200">
                              <label className="block text-sm font-bold text-red-800 mb-1">D (Kurang)</label>
                              <div className="flex items-center gap-2">
                                 <span className="text-sm font-medium text-red-700">0 -</span>
-                                <input type="number" className="w-16 border border-red-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.dMax} readOnly />
+                                <input type="number" className="w-16 border border-red-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.dMax} onChange={e=>setKktpForm({...kktpForm, dMax: e.target.value})} />
                              </div>
                           </div>
                        </div>
