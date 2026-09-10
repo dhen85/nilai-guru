@@ -105,9 +105,10 @@
 
         function App() {
           const [user, setUser] = useState(null);
-          const [role, setRole] = useState(null); 
+          const [role, setRole] = useState(null); // 'admin' | 'teacher'
           const [loading, setLoading] = useState(true);
 
+          // Global State
           const [settings, setSettings] = useState({ 
             schoolName: "SMA Negeri 1 Nusantara", 
             address: "Jl. Pendidikan No. 1", 
@@ -122,9 +123,10 @@
           const [grades, setGrades] = useState([]);
           const [objectives, setObjectives] = useState([]);
           const [teachers, setTeachers] = useState([]);
-          const [kktps, setKktps] = useState([]); 
-          const [remedials, setRemedials] = useState([]); 
+          const [kktps, setKktps] = useState([]);
+          const [remedials, setRemedials] = useState([]);
           
+          // Login State
           const [currentTeacher, setCurrentTeacher] = useState(null);
           const [loginData, setLoginData] = useState({ username: '', password: '' });
           const [loginError, setLoginError] = useState('');
@@ -150,15 +152,8 @@
               setLoading(false);
             });
 
-            const safetyTimer = setTimeout(() => {
-               setLoading(false);
-            }, 5000);
-
             initAuth();
-            return () => {
-               unsubscribe();
-               clearTimeout(safetyTimer);
-            };
+            return () => unsubscribe();
           }, []);
 
           const setupSubscriptions = () => {
@@ -183,7 +178,7 @@
           };
 
           if (loading) return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-50">
+            <div className="min-h-screen flex items-center justify-center bg-slate-50">
               <div className="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
             </div>
           );
@@ -207,19 +202,19 @@
           if (!role) {
             return (
               <div className="min-h-screen flex bg-white">
-                <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-indigo-900 via-blue-900 to-slate-900">
+                <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-indigo-900 via-indigo-800 to-blue-900">
                   <div className="absolute inset-0 flex flex-col justify-center px-16 text-white">
-                    <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-2xl flex items-center justify-center mb-6 shadow-xl border border-white/30 overflow-hidden">
-                      <img src={LOGO_URL} alt="Logo" className="w-full h-full object-cover" />
+                    <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mb-6 shadow-xl overflow-hidden p-2">
+                      <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain" />
                     </div>
                     <h1 className="text-5xl font-bold mb-4 leading-tight">EduGrade<br/>Portal</h1>
                     <p className="text-xl text-indigo-100 max-w-md">Sistem Informasi Pengolahan Nilai Sumatif Terpadu. Masuk untuk mengelola data akademik sekolah.</p>
                   </div>
                 </div>
                 
-                <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50/50">
-                  <div className="max-w-md w-full flex flex-col h-full justify-center">
-                    <div className="bg-white rounded-3xl shadow-xl p-10 space-y-8 border border-gray-100">
+                <div className="w-full lg:w-1/2 flex flex-col justify-between items-center p-8 bg-slate-50">
+                  <div className="flex-1 flex items-center justify-center w-full">
+                    <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-10 space-y-8 border border-gray-100">
                       <div className="text-center lg:text-left">
                         <h2 className="text-3xl font-bold text-gray-900">Selamat Datang</h2>
                         <p className="text-gray-500 mt-2">Silakan masuk menggunakan akun Anda</p>
@@ -247,10 +242,9 @@
                         </button>
                       </form>
                     </div>
-                    
-                    <div className="text-center mt-6">
-                      <p className="text-xs text-gray-400 font-medium">sistem manajemen nilai by @pagurudan & AI</p>
-                    </div>
+                  </div>
+                  <div className="text-center pb-4 pt-8">
+                    <p className="text-xs font-medium text-gray-500">sistem manajemen nilai by @pagurudan & AI</p>
                   </div>
                 </div>
               </div>
@@ -258,7 +252,7 @@
           }
 
           return (
-            <div className="min-h-screen bg-gray-50 flex text-gray-800 font-sans">
+            <div className="min-h-screen bg-slate-50 flex text-gray-800 font-sans">
               {role === 'admin' ? (
                 <AdminPortal 
                   settings={settings} classes={classes} subjects={subjects} 
@@ -291,7 +285,7 @@
             <div className="flex w-full min-h-screen">
               <aside className="w-64 bg-slate-900 text-slate-300 flex flex-col print:hidden">
                 <div className="p-6 border-b border-slate-800 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-slate-700">
+                  <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-white">
                      <img src={LOGO_URL} alt="Logo" className="w-full h-full object-cover" />
                   </div>
                   <h2 className="text-white font-bold text-xl">
@@ -340,8 +334,6 @@
           );
         }
 
-        // Komponen AdminSettings, AdminMasterData, dan AdminMonitor persis sama, saya lewati definisinya agar tidak mubazir, 
-        // tapi secara praktis semuanya ada di dalam blok ini.
         function AdminSettings({ settings }) {
           const [formData, setFormData] = useState(settings);
           const [saving, setSaving] = useState(false);
@@ -452,14 +444,22 @@
           );
         }
 
-        function AdminMasterData({ classes, subjects, students, teachers }) {
-          const [activeSubTab, setActiveSubTab] = useState('students');
-          const [modalOpen, setModalOpen] = useState(false);
-          const [editModalOpen, setEditModalOpen] = useState(false);
-          const [newItem, setNewItem] = useState({ name: '', className: '', nip: '', subjectName: '', username: '', password: '' });
-          const [editItem, setEditItem] = useState(null);
+      function AdminMasterData({ classes, subjects, students, teachers }) {
+        const [activeSubTab, setActiveSubTab] = useState('students');
+        
+        const [currentPage, setCurrentPage] = useState(1);
+        const [itemsPerPage] = useState(10);
+        const [filterClass, setFilterClass] = useState('');
 
-          const handleAdd = async () => {
+        // Reset halaman jika tab atau filter berubah
+        useEffect(() => { setCurrentPage(1); }, [activeSubTab, filterClass]);
+
+        const [modalOpen, setModalOpen] = useState(false);
+        const [editModalOpen, setEditModalOpen] = useState(false);
+        const [newItem, setNewItem] = useState({ name: '', className: '', nip: '', subjectName: '', username: '', password: '' });
+        const [editItem, setEditItem] = useState(null);
+
+        const handleAdd = async () => {
             if (!auth.currentUser || !newItem.name.trim()) return;
             try {
               const colName = activeSubTab;
@@ -546,161 +546,216 @@
                    }
                  }
                 payload = { name: editItem.name, nip: editItem.nip || '', subjectId: subjectId || '', username: editItem.username || '', password: editItem.password || '' };
-              }
-
-              await updateDoc(getDocRef(colName, editItem.id), payload);
-              setEditModalOpen(false);
-            } catch (e) { console.error(e); }
-          };
-
-          const handleFileUpload = async (e) => {
-            const file = e.target.files[0];
-            if (!file) return;
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-              const csvData = event.target.result;
-              const rows = csvData.split(/\r?\n/);
-              for (let i = 1; i < rows.length; i++) {
-                const cols = rows[i].split(',').map(c => c?.trim());
-                if (cols.length > 0 && cols[0] && cols[0] !== '') {
-                  const name = cols[0];
-                  if (activeSubTab === 'students') {
-                     const className = cols[1] || '';
-                     let classId = '';
-                     if (className) {
-                       const existingClass = classes.find(c => c.name.toLowerCase() === className.toLowerCase());
-                       if (existingClass) {
-                         classId = existingClass.id;
-                       } else {
-                         const classRef = await addDoc(getColRef('classes'), { name: className });
-                         classId = classRef.id;
-                         classes.push({ id: classRef.id, name: className });
-                       }
-                     }
-                     await addDoc(getColRef('students'), { name, classId });
-                  } else if (activeSubTab === 'teachers') {
-                     const nip = cols[1] || '';
-                     const username = cols[2] || '';
-                     const password = cols[3] || '';
-                     const subjectName = cols[4] || '';
-                     let subjectId = '';
-                     if (subjectName) {
-                       const existingSubj = subjects.find(s => s.name.toLowerCase() === subjectName.toLowerCase());
-                       if (existingSubj) {
-                         subjectId = existingSubj.id;
-                       } else {
-                         const subjRef = await addDoc(getColRef('subjects'), { name: subjectName });
-                         subjectId = subjRef.id;
-                         subjects.push({ id: subjRef.id, name: subjectName });
-                       }
-                     }
-                     await addDoc(getColRef('teachers'), { name, nip, username, password, subjectId });
-                  }
-                }
-              }
-              e.target.value = '';
-            };
-            reader.readAsText(file);
-          };
-
-          const downloadTemplate = () => {
-             let csvContent = "data:text/csv;charset=utf-8,";
-             if (activeSubTab === 'students') csvContent += "Nama Siswa,Kelas\nBudi Santoso,10A\nSiti Aminah,10B";
-             if (activeSubTab === 'teachers') csvContent += "Nama Guru,NIP,Username,Password,Mata Pelajaran\nPak Budi,12345,budi,pass123,Matematika\nBu Siti,67890,siti,pass456,Bahasa Indonesia";
-             const encodedUri = encodeURI(csvContent);
-             const link = document.createElement("a");
-             link.setAttribute("href", encodedUri);
-             link.setAttribute("download", `template_${activeSubTab}.csv`);
-             document.body.appendChild(link);
-             link.click();
-             document.body.removeChild(link);
           }
 
-          const subTabs = [
-            { id: 'students', label: 'Data Siswa' },
-            { id: 'teachers', label: 'Data Guru' },
-          ];
+          await updateDoc(getDocRef(colName, editItem.id), payload);
+          setEditModalOpen(false);
+        } catch (e) { console.error(e); }
+      };
 
-          const currentData = activeSubTab === 'students' ? students : teachers;
+      const parseCSVRow = (str) => {
+          const arr = [];
+          let quote = false;
+          let col = '';
+          for (let i = 0; i < str.length; i++) {
+              let cc = str[i], nc = str[i+1];
+              // Abaikan koma jika ada di dalam tanda kutip
+              if (cc === '"' && quote && nc === '"') { col += cc; ++i; continue; }
+              if (cc === '"') { quote = !quote; continue; }
+              if (cc === ',' && !quote) { arr.push(col.trim()); col = ''; continue; }
+              col += cc;
+          }
+          arr.push(col.trim());
+          return arr;
+      };
 
-          return (
-            <div className="space-y-6 animate-in fade-in duration-300">
-              <div className="flex space-x-2 border-b border-gray-200">
-                {subTabs.map(tab => (
-                  <button key={tab.id} onClick={() => setActiveSubTab(tab.id)}
-                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-                      activeSubTab === tab.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+      const handleFileUpload = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (event) => {
+          const csvData = event.target.result;
+          const rows = csvData.split(/\r?\n/);
+          for (let i = 1; i < rows.length; i++) {
+            if (!rows[i].trim()) continue; // Lewati baris kosong
+            const cols = parseCSVRow(rows[i]);
+            if (cols.length > 0 && cols[0] && cols[0] !== '') {
+              const name = cols[0];
+              if (activeSubTab === 'students') {
+                 const className = cols[1] || '';
+                 let classId = '';
+                 if (className) {
+                   const existingClass = classes.find(c => c.name.toLowerCase() === className.toLowerCase());
+                   if (existingClass) {
+                     classId = existingClass.id;
+                   } else {
+                     const classRef = await addDoc(getColRef('classes'), { name: className });
+                     classId = classRef.id;
+                     classes.push({ id: classRef.id, name: className });
+                   }
+                 }
+                 await addDoc(getColRef('students'), { name, classId });
+              } else if (activeSubTab === 'teachers') {
+                 const nip = cols[1] || '';
+                 const username = cols[2] || '';
+                 const password = cols[3] || '';
+                 const subjectName = cols[4] || '';
+                 let subjectId = '';
+                 if (subjectName) {
+                   const existingSubj = subjects.find(s => s.name.toLowerCase() === subjectName.toLowerCase());
+                   if (existingSubj) {
+                     subjectId = existingSubj.id;
+                   } else {
+                     const subjRef = await addDoc(getColRef('subjects'), { name: subjectName });
+                     subjectId = subjRef.id;
+                     subjects.push({ id: subjRef.id, name: subjectName });
+                   }
+                 }
+                 await addDoc(getColRef('teachers'), { name, nip, username, password, subjectId });
+              }
+            }
+          }
+          e.target.value = '';
+        };
+        reader.readAsText(file);
+      };
+
+      const downloadTemplate = () => {
+         let csvContent = "data:text/csv;charset=utf-8,";
+         // Menambahkan tanda kutip ganda pada template agar gelar aman dari split koma
+         if (activeSubTab === 'students') csvContent += "Nama Siswa,Kelas\n\"Budi Santoso\",10A\n\"Siti Aminah\",10B";
+         if (activeSubTab === 'teachers') csvContent += "Nama Guru,NIP,Username,Password,Mata Pelajaran\n\"Dr. Budi, M.Pd.\",12345,budi,pass123,Matematika\n\"Bu Siti, S.Pd.\",67890,siti,pass456,Bahasa Indonesia";
+         const encodedUri = encodeURI(csvContent);
+         const link = document.createElement("a");
+         link.setAttribute("href", encodedUri);
+         link.setAttribute("download", `template_${activeSubTab}.csv`);
+         document.body.appendChild(link);
+         link.click();
+         document.body.removeChild(link);
+      }
+
+      const subTabs = [
+        { id: 'students', label: 'Data Siswa' },
+        { id: 'teachers', label: 'Data Guru' },
+      ];
+
+      let filteredData = activeSubTab === 'students' ? students : teachers;
+      
+      // Terapkan Filter Kelas pada mode Siswa
+      if (activeSubTab === 'students' && filterClass) {
+         filteredData = filteredData.filter(s => s.classId === filterClass);
+      }
+
+      // Potong data untuk Pagenasi
+      const indexOfLastItem = currentPage * itemsPerPage;
+      const indexOfFirstItem = indexOfLastItem - itemsPerPage;
+      const currentData = filteredData.slice(indexOfFirstItem, indexOfLastItem);
+      const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+
+      const paginate = (pageNumber) => setCurrentPage(pageNumber);
+
+      return (
+        <div className="space-y-6 animate-in fade-in duration-300">
+          <div className="flex space-x-2 border-b border-gray-200">
+            {subTabs.map(tab => (
+              <button key={tab.id} onClick={() => setActiveSubTab(tab.id)}
+                className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+                  activeSubTab === tab.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 flex-wrap gap-4">
+              <div className="flex items-center gap-4">
+                <h3 className="font-semibold text-gray-700">Daftar {subTabs.find(t=>t.id===activeSubTab)?.label.replace('Data ', '')}</h3>
+                {activeSubTab === 'students' && (
+                   <select className="border border-gray-300 rounded-lg p-1.5 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                     value={filterClass} onChange={e => setFilterClass(e.target.value)}>
+                     <option value="">Semua Kelas</option>
+                     {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                   </select>
+                )}
               </div>
-
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                  <h3 className="font-semibold text-gray-700">Daftar {subTabs.find(t=>t.id===activeSubTab)?.label.replace('Data ', '')}</h3>
-                  <div className="flex gap-2">
-                    <button onClick={downloadTemplate} className="text-xs text-blue-600 underline px-2 py-2">Download Template (CSV)</button>
-                    <label className="flex items-center gap-1 bg-green-50 text-green-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-100 cursor-pointer transition-colors">
-                       <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
-                       Upload CSV
-                    </label>
-                    <button onClick={() => setModalOpen(true)} className="flex items-center gap-1 bg-indigo-50 text-indigo-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition-colors">
-                      <Icons.Plus /> Tambah Data
-                    </button>
-                  </div>
-                </div>
-                
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-gray-50 text-gray-600">
-                      <tr>
-                        <th className="p-4 font-semibold">No</th>
-                        <th className="p-4 font-semibold">Nama</th>
-                        {activeSubTab === 'students' && <th className="p-4 font-semibold">Kelas</th>}
-                        {activeSubTab === 'teachers' && <th className="p-4 font-semibold">Mapel & Info Akun</th>}
-                        <th className="p-4 font-semibold w-24 text-center">Aksi</th>
+              <div className="flex gap-2">
+                <button onClick={downloadTemplate} className="text-xs text-blue-600 underline px-2 py-2">Download Template (CSV)</button>
+                <label className="flex items-center gap-1 bg-green-50 text-green-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-green-100 cursor-pointer transition-colors">
+                   <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+                   Upload CSV
+                </label>
+                <button onClick={() => setModalOpen(true)} className="flex items-center gap-1 bg-indigo-50 text-indigo-600 px-4 py-2 rounded-lg text-sm font-semibold hover:bg-indigo-100 transition-colors">
+                  <Icons.Plus /> Tambah Data
+                </button>
+              </div>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-gray-50 text-gray-600">
+                  <tr>
+                    <th className="p-4 font-semibold">No</th>
+                    <th className="p-4 font-semibold">Nama</th>
+                    {activeSubTab === 'students' && <th className="p-4 font-semibold">Kelas</th>}
+                    {activeSubTab === 'teachers' && <th className="p-4 font-semibold">Mapel & Info Akun</th>}
+                    <th className="p-4 font-semibold w-24 text-center">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {currentData.length === 0 ? (
+                    <tr><td colSpan="4" className="p-8 text-center text-gray-400">Belum ada data</td></tr>
+                  ) : (
+                    currentData.map((item, idx) => (
+                      <tr key={item.id} className="hover:bg-gray-50/50">
+                        {/* Menampilkan nomor urut berlanjut lintas halaman */}
+                        <td className="p-4 text-gray-500">{indexOfFirstItem + idx + 1}</td>
+                        <td className="p-4 font-medium text-gray-800">{item.name}</td>
+                        {activeSubTab === 'students' && (
+                          <td className="p-4 text-gray-600">
+                            {classes.find(c => c.id === item.classId)?.name || 'Unknown'}
+                          </td>
+                        )}
+                        {activeSubTab === 'teachers' && (
+                          <td className="p-4 text-gray-600 text-sm">
+                            <div className="font-semibold text-indigo-600">{subjects.find(s => s.id === item.subjectId)?.name || 'Belum diatur Mapel'}</div>
+                            <div>NIP: {item.nip || '-'}</div>
+                            <div className="text-xs text-gray-500 mt-1">User: <span className="font-mono text-gray-700">{item.username}</span> | Pass: <span className="font-mono text-gray-700">{item.password}</span></div>
+                          </td>
+                        )}
+                        <td className="p-4 text-center whitespace-nowrap">
+                          <button onClick={() => { 
+                             const className = classes.find(c => c.id === item.classId)?.name || '';
+                             const subjectName = subjects.find(s => s.id === item.subjectId)?.name || '';
+                             setEditItem({...item, className, subjectName}); 
+                             setEditModalOpen(true); 
+                          }} className="text-blue-400 hover:text-blue-600 p-1 mr-2">Edit</button>
+                          <button onClick={() => handleDelete(item.id, activeSubTab)} className="text-red-400 hover:text-red-600 p-1">Hapus</button>
+                        </td>
                       </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-100">
-                      {currentData.length === 0 ? (
-                        <tr><td colSpan="4" className="p-8 text-center text-gray-400">Belum ada data</td></tr>
-                      ) : (
-                        currentData.map((item, idx) => (
-                          <tr key={item.id} className="hover:bg-gray-50/50">
-                            <td className="p-4 text-gray-500">{idx + 1}</td>
-                            <td className="p-4 font-medium text-gray-800">{item.name}</td>
-                            {activeSubTab === 'students' && (
-                              <td className="p-4 text-gray-600">
-                                {classes.find(c => c.id === item.classId)?.name || 'Unknown'}
-                              </td>
-                            )}
-                            {activeSubTab === 'teachers' && (
-                              <td className="p-4 text-gray-600 text-sm">
-                                <div className="font-semibold text-indigo-600">{subjects.find(s => s.id === item.subjectId)?.name || 'Belum diatur Mapel'}</div>
-                                <div>NIP: {item.nip || '-'}</div>
-                                <div className="text-xs text-gray-500 mt-1">User: <span className="font-mono text-gray-700">{item.username}</span> | Pass: <span className="font-mono text-gray-700">{item.password}</span></div>
-                              </td>
-                            )}
-                            <td className="p-4 text-center whitespace-nowrap">
-                              <button onClick={() => { 
-                                 const className = classes.find(c => c.id === item.classId)?.name || '';
-                                 const subjectName = subjects.find(s => s.id === item.subjectId)?.name || '';
-                                 setEditItem({...item, className, subjectName}); 
-                                 setEditModalOpen(true); 
-                              }} className="text-blue-400 hover:text-blue-600 p-1 mr-2">Edit</button>
-                              <button onClick={() => handleDelete(item.id, activeSubTab)} className="text-red-400 hover:text-red-600 p-1">Hapus</button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {}
+            {totalPages > 1 && (
+              <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
+                <span className="text-sm text-gray-500">Menampilkan {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filteredData.length)} dari {filteredData.length} data</span>
+                <div className="flex gap-1 flex-wrap">
+                  <button onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1} className="px-3 py-1.5 border border-gray-300 rounded-md text-sm disabled:opacity-50 hover:bg-gray-100 font-medium">Prev</button>
+                  {Array.from({length: totalPages}).map((_, i) => (
+                    <button key={i} onClick={() => paginate(i + 1)} className={`px-3.5 py-1.5 border rounded-md text-sm font-medium ${currentPage === i + 1 ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 hover:bg-gray-100 text-gray-700'}`}>{i + 1}</button>
+                  ))}
+                  <button onClick={() => paginate(currentPage + 1)} disabled={currentPage === totalPages || totalPages === 0} className="px-3 py-1.5 border border-gray-300 rounded-md text-sm disabled:opacity-50 hover:bg-gray-100 font-medium">Next</button>
                 </div>
               </div>
+            )}
+          </div>
 
-              <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={`Tambah Data ${subTabs.find(t=>t.id===activeSubTab)?.label.replace('Data ', '')}`}>
+          <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={`Tambah Data ${subTabs.find(t=>t.id===activeSubTab)?.label.replace('Data ', '')}`}>
                 <div className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Nama</label>
