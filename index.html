@@ -36,18 +36,15 @@
     </div>
   </div>
 
-  <!-- Memuat Firebase secara terpisah (Native Browser ES Module) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
     import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    // Ekspos ke global agar bisa dipakai oleh React di dalam tag text/babel
     window.FirebaseAPI = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, getDocs, query, limit };
   </script>
 
   <script type="text/babel" data-type="module">
-    // Tunggu hingga Firebase selesai dimuat sebelum menjalankan React
     const initAppInterval = setInterval(() => {
       if (window.FirebaseAPI) {
         clearInterval(initAppInterval);
@@ -55,7 +52,6 @@
         const { useState, useEffect, useMemo } = React;
         const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, getDocs, query, limit } = window.FirebaseAPI;
 
-        // Inisialisasi Firebase
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
           apiKey: "AIzaSyAmlyheyJTeeIkKDP8V_65R3DJfah_ERG8",
           authDomain: "nilai-mapel.firebaseapp.com",
@@ -107,19 +103,47 @@
           );
         };
 
+        const calculateFinalGrade = (gradeData, settings) => {
+          const safeAvg = (arr) => {
+            if (!arr || !Array.isArray(arr) || arr.length === 0) return 0;
+            const validVals = arr.filter(v => v !== null && v !== '');
+            if (validVals.length === 0) return 0;
+            const nums = validVals.map(Number).filter(n => !isNaN(n));
+            if (nums.length === 0) return 0;
+            return nums.reduce((a, b) => a + b, 0) / nums.length;
+          };
+
+          const avgTugas = safeAvg(gradeData.tugas);
+          const avgKeterampilan = safeAvg(gradeData.keterampilan);
+          const avgSLM = safeAvg(gradeData.slm);
+
+          let nlmTotal = 0;
+          let nlmCount = 0;
+          if (avgTugas > 0) { nlmTotal += avgTugas; nlmCount++; }
+          if (avgKeterampilan > 0) { nlmTotal += avgKeterampilan; nlmCount++; }
+          if (avgSLM > 0) { nlmTotal += avgSLM; nlmCount++; }
+          
+          const finalNlm = nlmCount > 0 ? (nlmTotal / nlmCount) : 0;
+
+          const sts = Number(gradeData.sts) || 0;
+          const sas = Number(gradeData.sas) || 0;
+
+          const wSLM = Number(settings.weightSLM) / 100;
+          const wSTS = Number(settings.weightSTS) / 100;
+          const wSAS = Number(settings.weightSAS) / 100;
+
+          return (finalNlm * wSLM) + (sts * wSTS) + (sas * wSAS);
+        };
+
         function App() {
           const [user, setUser] = useState(null);
-          const [role, setRole] = useState(null); // 'admin' | 'teacher'
+          const [role, setRole] = useState(null); 
           const [loading, setLoading] = useState(true);
 
-          // Global State
           const [settings, setSettings] = useState({ 
-            schoolName: "SMA Negeri 1 Nusantara", 
-            address: "Jl. Pendidikan No. 1", 
-            principal: "Dr. Budi Santoso, M.Pd", 
-            nip: "19700101 199512 1 001",
-            academicYear: "2026/2027",
-            weightSLM: 40, weightSTS: 30, weightSAS: 30 
+            schoolName: "SMA Negeri 1 Nusantara", address: "Jl. Pendidikan No. 1", 
+            principal: "Dr. Budi Santoso, M.Pd", nip: "19700101 199512 1 001",
+            academicYear: "2026/2027", weightSLM: 40, weightSTS: 30, weightSAS: 30 
           });
           const [classes, setClasses] = useState([]);
           const [subjects, setSubjects] = useState([]);
@@ -130,10 +154,17 @@
           const [kktps, setKktps] = useState([]);
           const [remedials, setRemedials] = useState([]);
           
-          // Login State
           const [currentTeacher, setCurrentTeacher] = useState(null);
           const [loginData, setLoginData] = useState({ username: '', password: '' });
           const [loginError, setLoginError] = useState('');
+          
+          // Toast Notification State
+          const [toast, setToast] = useState({ show: false, message: '' });
+
+          const showToast = (message) => {
+            setToast({ show: true, message });
+            setTimeout(() => setToast({ show: false, message: '' }), 3000);
+          };
 
           useEffect(() => {
             const initAuth = async () => {
@@ -143,16 +174,12 @@
                 } else {
                   await signInAnonymously(auth);
                 }
-              } catch (error) {
-                console.error("Auth error:", error);
-              }
+              } catch (error) { console.error("Auth error:", error); }
             };
 
             const unsubscribe = onAuthStateChanged(auth, (user) => {
               setUser(user);
-              if (user) {
-                setupSubscriptions();
-              }
+              if (user) setupSubscriptions();
               setLoading(false);
             });
 
@@ -203,79 +230,89 @@
             }
           };
 
-          if (!role) {
-            return (
-              <div className="min-h-screen flex bg-white">
-                <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-indigo-900 via-indigo-800 to-blue-900">
-                  <div className="absolute inset-0 flex flex-col justify-center px-16 text-white">
-                    <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mb-6 shadow-xl overflow-hidden p-2">
-                      <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain" />
-                    </div>
-                    <h1 className="text-5xl font-bold mb-4 leading-tight">EduGrade<br/>Portal</h1>
-                    <p className="text-xl text-indigo-100 max-w-md">Sistem Informasi Pengolahan Nilai Sumatif Terpadu. Masuk untuk mengelola data akademik sekolah.</p>
-                  </div>
-                </div>
-                
-                <div className="w-full lg:w-1/2 flex flex-col justify-between items-center p-8 bg-slate-50">
-                  <div className="flex-1 flex items-center justify-center w-full">
-                    <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-10 space-y-8 border border-gray-100">
-                      <div className="text-center lg:text-left">
-                        <h2 className="text-3xl font-bold text-gray-900">Selamat Datang</h2>
-                        <p className="text-gray-500 mt-2">Silakan masuk menggunakan akun Anda</p>
-                      </div>
-
-                      {loginError && (
-                        <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium">
-                          {loginError}
-                        </div>
-                      )}
-
-                      <form onSubmit={handleLogin} className="space-y-5">
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">Username</label>
-                          <input type="text" required value={loginData.username} onChange={e => setLoginData({...loginData, username: e.target.value})} 
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" placeholder="Masukkan username" />
-                        </div>
-                        <div>
-                          <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
-                          <input type="password" required value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} 
-                            className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" placeholder="••••••••" />
-                        </div>
-                        <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl transition-colors shadow-lg shadow-indigo-200 mt-4">
-                          Masuk ke Portal
-                        </button>
-                      </form>
-                    </div>
-                  </div>
-                  <div className="text-center pb-4 pt-8">
-                    <p className="text-xs font-medium text-gray-500">sistem manajemen nilai by @pagurudan & AI</p>
-                  </div>
-                </div>
-              </div>
-            );
-          }
-
           return (
-            <div className="min-h-screen bg-slate-50 flex text-gray-800 font-sans">
-              {role === 'admin' ? (
-                <AdminPortal 
-                  settings={settings} classes={classes} subjects={subjects} 
-                  students={students} grades={grades} teachers={teachers} objectives={objectives} kktps={kktps}
-                  onLogout={() => { setRole(null); setLoginData({username: '', password: ''}); setCurrentTeacher(null); }} 
-                />
+            <div className="relative">
+              {!role ? (
+                <div className="min-h-screen flex bg-white">
+                  <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-indigo-900 via-indigo-800 to-blue-900">
+                    <div className="absolute inset-0 flex flex-col justify-center px-16 text-white">
+                      <div className="w-20 h-20 bg-white rounded-2xl flex items-center justify-center mb-6 shadow-xl overflow-hidden p-2">
+                        <img src={LOGO_URL} alt="Logo" className="w-full h-full object-contain" />
+                      </div>
+                      <h1 className="text-5xl font-bold mb-4 leading-tight">EduGrade<br/>Portal</h1>
+                      <p className="text-xl text-indigo-100 max-w-md">Sistem Informasi Pengolahan Nilai Sumatif Terpadu. Masuk untuk mengelola data akademik sekolah.</p>
+                    </div>
+                  </div>
+                  
+                  <div className="w-full lg:w-1/2 flex flex-col justify-between items-center p-8 bg-slate-50">
+                    <div className="flex-1 flex items-center justify-center w-full">
+                      <div className="max-w-md w-full bg-white rounded-3xl shadow-xl p-10 space-y-8 border border-gray-100">
+                        <div className="text-center lg:text-left">
+                          <h2 className="text-3xl font-bold text-gray-900">Selamat Datang</h2>
+                          <p className="text-gray-500 mt-2">Silakan masuk menggunakan akun Anda</p>
+                        </div>
+
+                        {loginError && (
+                          <div className="p-4 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm font-medium">
+                            {loginError}
+                          </div>
+                        )}
+
+                        <form onSubmit={handleLogin} className="space-y-5">
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Username</label>
+                            <input type="text" required value={loginData.username} onChange={e => setLoginData({...loginData, username: e.target.value})} 
+                              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" placeholder="Masukkan username" />
+                          </div>
+                          <div>
+                            <label className="block text-sm font-semibold text-gray-700 mb-2">Password</label>
+                            <input type="password" required value={loginData.password} onChange={e => setLoginData({...loginData, password: e.target.value})} 
+                              className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all" placeholder="••••••••" />
+                          </div>
+                          <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3.5 px-4 rounded-xl transition-colors shadow-lg shadow-indigo-200 mt-4">
+                            Masuk ke Portal
+                          </button>
+                        </form>
+                      </div>
+                    </div>
+                    <div className="text-center pb-4 pt-8">
+                      <p className="text-xs font-medium text-gray-500">sistem manajemen nilai by @pagurudan & AI</p>
+                    </div>
+                  </div>
+                </div>
               ) : (
-                <TeacherPortal 
-                  settings={settings} classes={classes} subjects={subjects} 
-                  students={students} grades={grades} objectives={objectives} kktps={kktps} remedials={remedials}
-                  teachers={teachers} currentTeacher={currentTeacher}
-                  onLogout={() => { setRole(null); setLoginData({username: '', password: ''}); setCurrentTeacher(null); }} 
-                />
+                <div className="min-h-screen bg-slate-50 flex text-gray-800 font-sans">
+                  {role === 'admin' ? (
+                    <AdminPortal 
+                      settings={settings} classes={classes} subjects={subjects} 
+                      students={students} grades={grades} teachers={teachers} objectives={objectives} kktps={kktps} showToast={showToast}
+                      onLogout={() => { setRole(null); setLoginData({username: '', password: ''}); setCurrentTeacher(null); }} 
+                    />
+                  ) : (
+                    <TeacherPortal 
+                      settings={settings} classes={classes} subjects={subjects} 
+                      students={students} grades={grades} objectives={objectives} kktps={kktps} remedials={remedials}
+                      teachers={teachers} currentTeacher={currentTeacher} showToast={showToast}
+                      onLogout={() => { setRole(null); setLoginData({username: '', password: ''}); setCurrentTeacher(null); }} 
+                    />
+                  )}
+                </div>
               )}
+              
+              {/* Toast Notification Container */}
+              <div className={`fixed bottom-6 right-6 z-[100] transform transition-all duration-300 print:hidden ${toast.show ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0 pointer-events-none'}`}>
+                 <div className="bg-gray-900 text-white px-6 py-3.5 rounded-xl shadow-2xl flex items-center gap-3">
+                    <div className="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center shrink-0">
+                       <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path></svg>
+                    </div>
+                    <span className="font-medium text-sm">{toast.message}</span>
+                 </div>
+              </div>
             </div>
           );
         }
 
-        function AdminPortal({ settings, classes, subjects, students, grades, teachers, objectives, kktps, onLogout }) {
+        function AdminPortal({ settings, classes, subjects, students, grades, teachers, objectives, kktps, showToast, onLogout }) {
           const [activeTab, setActiveTab] = useState('settings');
 
           const navItems = [
@@ -292,21 +329,13 @@
                   <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 bg-white">
                      <img src={LOGO_URL} alt="Logo" className="w-full h-full object-cover" />
                   </div>
-                  <h2 className="text-white font-bold text-xl">
-                    Portal Admin
-                  </h2>
+                  <h2 className="text-white font-bold text-xl">Portal Admin</h2>
                 </div>
                 <nav className="flex-1 p-4 space-y-2">
                   {navItems.map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => setActiveTab(item.id)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                        activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' : 'hover:bg-slate-800 hover:text-white'
-                      }`}
-                    >
-                      <item.icon />
-                      <span className="font-medium">{item.label}</span>
+                    <button key={item.id} onClick={() => setActiveTab(item.id)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === item.id ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-900/20' : 'hover:bg-slate-800 hover:text-white'}`}>
+                      <item.icon /> <span className="font-medium">{item.label}</span>
                     </button>
                   ))}
                 </nav>
@@ -319,18 +348,14 @@
 
               <main className="flex-1 flex flex-col bg-slate-50 min-w-0">
                 <header className="bg-white border-b border-gray-200 p-6 flex justify-between items-center print:hidden">
-                  <h1 className="text-2xl font-bold text-gray-800">
-                    {navItems.find(i => i.id === activeTab)?.label}
-                  </h1>
-                  <div className="text-sm text-gray-500 font-medium">
-                    {settings.schoolName}
-                  </div>
+                  <h1 className="text-2xl font-bold text-gray-800">{navItems.find(i => i.id === activeTab)?.label}</h1>
+                  <div className="text-sm text-gray-500 font-medium">{settings.schoolName}</div>
                 </header>
 
                 <div className="p-6 overflow-auto flex-1">
-                  {activeTab === 'settings' && <AdminSettings settings={settings} />}
-                  {activeTab === 'master' && <AdminMasterData classes={classes} subjects={subjects} students={students} teachers={teachers} />}
-                  {activeTab === 'monitor' && <AdminMonitor grades={grades} classes={classes} subjects={subjects} teachers={teachers} />}
+                  {activeTab === 'settings' && <AdminSettings settings={settings} showToast={showToast} />}
+                  {activeTab === 'master' && <AdminMasterData classes={classes} subjects={subjects} students={students} teachers={teachers} showToast={showToast} />}
+                  {activeTab === 'monitor' && <AdminMonitor grades={grades} classes={classes} subjects={subjects} teachers={teachers} settings={settings} />}
                   {activeTab === 'leger' && <AdminLeger settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} teachers={teachers} objectives={objectives} kktps={kktps} />}
                 </div>
               </main>
@@ -338,7 +363,7 @@
           );
         }
 
-        function AdminSettings({ settings }) {
+        function AdminSettings({ settings, showToast }) {
           const [formData, setFormData] = useState(settings);
           const [saving, setSaving] = useState(false);
 
@@ -363,11 +388,9 @@
               } else {
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'settings', snapshot.docs[0].id), payload);
               }
+              showToast("Pengaturan berhasil disimpan");
               setSaving(false);
-            } catch (e) {
-              console.error(e);
-              setSaving(false);
-            }
+            } catch (e) { console.error(e); setSaving(false); }
           };
 
           return (
@@ -448,14 +471,12 @@
           );
         }
 
-      function AdminMasterData({ classes, subjects, students, teachers }) {
+      function AdminMasterData({ classes, subjects, students, teachers, showToast }) {
         const [activeSubTab, setActiveSubTab] = useState('students');
-        
         const [currentPage, setCurrentPage] = useState(1);
         const [itemsPerPage] = useState(10);
         const [filterClass, setFilterClass] = useState('');
 
-        // Reset halaman jika tab atau filter berubah
         useEffect(() => { setCurrentPage(1); }, [activeSubTab, filterClass]);
 
         const [modalOpen, setModalOpen] = useState(false);
@@ -474,9 +495,8 @@
                 const className = newItem.className.trim();
                 if (className) {
                   const existingClass = classes.find(c => c.name.toLowerCase() === className.toLowerCase());
-                  if (existingClass) {
-                    classId = existingClass.id;
-                  } else {
+                  if (existingClass) { classId = existingClass.id; } 
+                  else {
                     const classRef = await addDoc(getColRef('classes'), { name: className });
                     classId = classRef.id;
                   }
@@ -485,7 +505,6 @@
               }
 
               if (activeSubTab === 'teachers') {
-                // Guru tidak lagi membuat ID Mapel di Master Data, hanya merekam subjectName sebagai text
                 payload = { 
                   name: newItem.name, nip: newItem.nip || '', subjectName: newItem.subjectName || '', 
                   username: newItem.username || '', password: newItem.password || '' 
@@ -497,16 +516,18 @@
               }
 
               await addDoc(getColRef(colName), payload);
+              showToast(`Data ${newItem.name} berhasil ditambahkan!`);
               setModalOpen(false);
               setNewItem({ name: '', className: '', nip: '', subjectName: '', username: '', password: '' });
-            } catch (e) {
-              console.error(e);
-            }
+            } catch (e) { console.error(e); }
           };
 
           const handleDelete = async (id, colName) => {
             if (!auth.currentUser) return;
-            try { await deleteDoc(getDocRef(colName, id)); } 
+            try { 
+               await deleteDoc(getDocRef(colName, id)); 
+               showToast("Data berhasil dihapus");
+            } 
             catch (e) { console.error(e); }
           };
 
@@ -521,9 +542,8 @@
                 if (editItem.className) {
                   const className = editItem.className.trim();
                   const existingClass = classes.find(c => c.name.toLowerCase() === className.toLowerCase());
-                  if (existingClass) {
-                    classId = existingClass.id;
-                  } else {
+                  if (existingClass) { classId = existingClass.id; } 
+                  else {
                     const classRef = await addDoc(getColRef('classes'), { name: className });
                     classId = classRef.id;
                   }
@@ -539,10 +559,11 @@
                  payload = { name: editItem.name };
               }
 
-          await updateDoc(getDocRef(colName, editItem.id), payload);
-          setEditModalOpen(false);
-        } catch (e) { console.error(e); }
-      };
+              await updateDoc(getDocRef(colName, editItem.id), payload);
+              showToast("Perubahan data berhasil disimpan!");
+              setEditModalOpen(false);
+            } catch (e) { console.error(e); }
+          };
 
       const parseCSVRow = (str) => {
           const arr = [];
@@ -589,13 +610,14 @@
                  const nip = cols[1] || '';
                  const username = cols[2] || '';
                  const password = cols[3] || '';
-                 const subjectName = cols[4] || ''; // Hanya merekam nama mapel sebagai text
+                 const subjectName = cols[4] || ''; 
                  await addDoc(getColRef('teachers'), { name, nip, username, password, subjectName });
               } else if (activeSubTab === 'subjects') {
                  await addDoc(getColRef('subjects'), { name });
               }
             }
           }
+          showToast(`File CSV berhasil diimport ke data ${activeSubTab}!`);
           e.target.value = '';
         };
         reader.readAsText(file);
@@ -623,7 +645,6 @@
       ];
 
       let filteredData = activeSubTab === 'students' ? students : (activeSubTab === 'teachers' ? teachers : subjects);
-      
       if (activeSubTab === 'students' && filterClass) {
          filteredData = filteredData.filter(s => s.classId === filterClass);
       }
@@ -632,8 +653,6 @@
       const indexOfFirstItem = indexOfLastItem - itemsPerPage;
       const currentData = filteredData.slice(indexOfFirstItem, indexOfLastItem);
       const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-
-      const paginate = (pageNumber) => setCurrentPage(pageNumber);
 
       return (
         <div className="space-y-6 animate-in fade-in duration-300">
@@ -694,9 +713,7 @@
                         <td className="p-4 text-gray-500">{indexOfFirstItem + idx + 1}</td>
                         <td className="p-4 font-medium text-gray-800">{item.name}</td>
                         {activeSubTab === 'students' && (
-                          <td className="p-4 text-gray-600">
-                            {classes.find(c => c.id === item.classId)?.name || 'Unknown'}
-                          </td>
+                          <td className="p-4 text-gray-600">{classes.find(c => c.id === item.classId)?.name || 'Unknown'}</td>
                         )}
                         {activeSubTab === 'teachers' && (
                           <td className="p-4 text-gray-600 text-sm">
@@ -723,16 +740,15 @@
               </table>
             </div>
 
-            {}
             {totalPages > 1 && (
               <div className="p-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between">
                 <span className="text-sm text-gray-500">Menampilkan {indexOfFirstItem + 1} - {Math.min(indexOfLastItem, filteredData.length)} dari {filteredData.length} data</span>
                 <div className="flex gap-1 flex-wrap">
-                  <button onClick={() => paginate(currentPage - 1)} disabled={currentPage === 1} className="px-3 py-1.5 border border-gray-300 rounded-md text-sm disabled:opacity-50 hover:bg-gray-100 font-medium">Prev</button>
+                  <button onClick={() => setCurrentPage(currentPage - 1)} disabled={currentPage === 1} className="px-3 py-1.5 border border-gray-300 rounded-md text-sm disabled:opacity-50 hover:bg-gray-100 font-medium">Prev</button>
                   {Array.from({length: totalPages}).map((_, i) => (
-                    <button key={i} onClick={() => paginate(i + 1)} className={`px-3.5 py-1.5 border rounded-md text-sm font-medium ${currentPage === i + 1 ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 hover:bg-gray-100 text-gray-700'}`}>{i + 1}</button>
+                    <button key={i} onClick={() => setCurrentPage(i + 1)} className={`px-3.5 py-1.5 border rounded-md text-sm font-medium ${currentPage === i + 1 ? 'bg-indigo-600 text-white border-indigo-600' : 'border-gray-300 hover:bg-gray-100 text-gray-700'}`}>{i + 1}</button>
                   ))}
-                  <button onClick={() => paginate(currentPage + 1)} disabled={currentPage === totalPages || totalPages === 0} className="px-3 py-1.5 border border-gray-300 rounded-md text-sm disabled:opacity-50 hover:bg-gray-100 font-medium">Next</button>
+                  <button onClick={() => setCurrentPage(currentPage + 1)} disabled={currentPage === totalPages || totalPages === 0} className="px-3 py-1.5 border border-gray-300 rounded-md text-sm disabled:opacity-50 hover:bg-gray-100 font-medium">Next</button>
                 </div>
               </div>
             )}
@@ -783,7 +799,6 @@
                 </div>
               </Modal>
 
-              {}
               <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title={`Edit Data ${subTabs.find(t=>t.id===activeSubTab)?.label.replace('Data ', '')}`}>
                 {editItem && (
                   <div className="space-y-4">
@@ -833,14 +848,14 @@
           );
         }
 
-        function AdminMonitor({ grades, classes, subjects, teachers }) {
+        function AdminMonitor({ grades, classes, subjects, teachers, settings }) {
           const inputStatus = useMemo(() => {
             const status = [];
             classes.forEach(c => {
               subjects.forEach(s => {
                 const count = grades.filter(g => g.classId === c.id && g.subjectId === s.id).length;
                 if (count > 0) {
-                  // Mencocokkan nama guru berdasarkan kesamaan teks subjectName (string) dan nama mapel di master data
+                  // Pencocokan string nama mapel untuk mencari nama guru yang tepat
                   const teacher = teachers?.find(t => t.subjectName && t.subjectName.toLowerCase() === s.name.toLowerCase());
                   status.push({ class: c.name, subject: s.name, count, teacherName: teacher ? teacher.name : 'Guru Mapel' });
                 }
@@ -849,9 +864,7 @@
             return status;
           }, [grades, classes, subjects, teachers]);
 
-          const handlePrint = () => {
-            window.print();
-          };
+          const handlePrint = () => window.print();
 
           return (
             <div className="space-y-6 animate-in fade-in duration-300">
@@ -865,7 +878,8 @@
                 </div>
                 
                 <div className="hidden print:block text-center mb-6 pb-4 border-b-2 border-gray-800">
-                  <h2 className="text-xl font-bold uppercase tracking-wider">LAPORAN STATUS PENGINPUTAN NILAI</h2>
+                  <h1 className="text-2xl font-bold uppercase tracking-wider">{settings.schoolName}</h1>
+                  <h2 className="text-xl font-bold mt-2">LAPORAN STATUS PENGINPUTAN NILAI</h2>
                   <p className="text-gray-600 mt-1">Data Guru Mata Pelajaran yang Telah Menyelesaikan Input Nilai</p>
                 </div>
 
@@ -893,42 +907,11 @@
           );
         }
 
-        function calculateFinalGrade(gradeData, settings) {
-          const safeAvg = (arr) => {
-            if (!arr || !Array.isArray(arr) || arr.length === 0) return 0;
-            const nums = arr.map(Number).filter(n => !isNaN(n));
-            if (nums.length === 0) return 0;
-            return nums.reduce((a, b) => a + b, 0) / nums.length;
-          };
-
-          const avgTugas = safeAvg(gradeData.tugas);
-          const avgKeterampilan = safeAvg(gradeData.keterampilan);
-          const avgSLM = safeAvg(gradeData.slm);
-
-          // Dinamis SLM
-          let nlmTotal = 0;
-          let nlmCount = 0;
-          if (avgTugas > 0) { nlmTotal += avgTugas; nlmCount++; }
-          if (avgKeterampilan > 0) { nlmTotal += avgKeterampilan; nlmCount++; }
-          if (avgSLM > 0) { nlmTotal += avgSLM; nlmCount++; }
-          
-          const finalNlm = nlmCount > 0 ? (nlmTotal / nlmCount) : 0;
-
-          const sts = Number(gradeData.sts) || 0;
-          const sas = Number(gradeData.sas) || 0;
-
-          const wSLM = Number(settings.weightSLM) / 100;
-          const wSTS = Number(settings.weightSTS) / 100;
-          const wSAS = Number(settings.weightSAS) / 100;
-
-          return (finalNlm * wSLM) + (sts * wSTS) + (sas * wSAS);
-        }
-
         function AdminLeger({ settings, classes, subjects, students, grades, teachers, objectives, kktps }) {
           const [selectedClass, setSelectedClass] = useState('');
           const [selectedSubject, setSelectedSubject] = useState('');
           
-          const classStudents = students.filter(s => s.classId === selectedClass);
+          const classStudents = students.filter(s => s.classId === selectedClass).sort((a,b) => (a.name || '').localeCompare(b.name || ''));
           
           const isMapelLeger = !!selectedSubject;
           const targetSubjects = isMapelLeger ? subjects.filter(s => s.id === selectedSubject) : subjects;
@@ -941,7 +924,7 @@
               
               if (isMapelLeger) {
                 const gradeRecord = grades.find(g => g.studentId === student.id && g.subjectId === selectedSubject) || {};
-                const avg = (arr) => arr && arr.length ? arr.map(Number).filter(n=>!isNaN(n)).reduce((a,b)=>a+b,0)/arr.filter(n=>!isNaN(Number(n))).length : 0;
+                const avg = (arr) => arr && arr.length ? (arr.filter(v => v !== null && v !== '').length ? arr.filter(v => v !== null && v !== '').map(Number).reduce((a,b)=>a+b,0)/arr.filter(v => v !== null && v !== '').length : 0) : 0;
                 
                 const finalGrade = calculateFinalGrade(gradeRecord, settings);
                 studentGrades['detail'] = {
@@ -962,9 +945,7 @@
             }).sort((a, b) => b.total - a.total); 
           }, [selectedClass, selectedSubject, classStudents, grades, subjects, settings, isMapelLeger]);
 
-          const handlePrint = () => {
-            window.print();
-          };
+          const handlePrint = () => window.print();
 
           const selectedTeacher = isMapelLeger ? teachers?.find(t => t.subjectName && t.subjectName.toLowerCase() === targetSubjects[0]?.name.toLowerCase()) : null;
           const subjectObjectives = isMapelLeger ? objectives?.filter(o => o.subjectId === selectedSubject && o.classId === selectedClass) : [];
@@ -975,8 +956,7 @@
                 <div className="flex-1 min-w-[200px]">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Kelas</label>
                   <select className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                    value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
-                  >
+                    value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
                     <option value="">-- Pilih Kelas --</option>
                     {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -984,8 +964,7 @@
                 <div className="flex-1 min-w-[200px]">
                   <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Mata Pelajaran (Opsional)</label>
                   <select className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none bg-white"
-                    value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}
-                  >
+                    value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
                     <option value="">Semua Mapel (Leger Umum)</option>
                     {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
@@ -1076,30 +1055,32 @@
                   </div>
 
                   <div className={`mt-16 flex ${isMapelLeger ? 'justify-between' : 'justify-end'} print:flex`}>
-                    <div className="text-center w-64">
+                    <div className="text-center w-auto px-4">
                       <p>Mengetahui,</p>
                       <p>Kepala Sekolah</p>
                       <div className="h-24"></div>
-                      <p className="font-bold underline">{settings.principal}</p>
-                      <p>NIP. {settings.nip}</p>
+                      <p className="font-bold underline whitespace-nowrap">{settings.principal}</p>
+                      <p className="whitespace-nowrap">NIP. {settings.nip}</p>
                     </div>
                     {isMapelLeger && (
-                      <div className="text-center w-64">
+                      <div className="text-center w-auto px-4">
                         <p>Mengetahui,</p>
                         <p>Guru Mata Pelajaran</p>
                         <div className="h-24"></div>
-                        <p className="font-bold underline">{selectedTeacher ? selectedTeacher.name : '..................................'}</p>
-                        <p>NIP. {selectedTeacher && selectedTeacher.nip ? selectedTeacher.nip : '........................'}</p>
+                        <p className="font-bold underline whitespace-nowrap">{selectedTeacher ? selectedTeacher.name : '..................................'}</p>
+                        <p className="whitespace-nowrap">NIP. {selectedTeacher && selectedTeacher.nip ? selectedTeacher.nip : '........................'}</p>
                       </div>
                     )}
                   </div>
 
                   {isMapelLeger && subjectObjectives && subjectObjectives.length > 0 && (
-                    <div className="mt-12 pt-6 border-t-2 border-gray-800 break-inside-avoid">
-                      <h3 className="font-bold mb-2">Tujuan Pembelajaran (TP) yang Diujikan:</h3>
-                      <ol className="list-decimal pl-5 text-sm space-y-1">
+                    <div className="mt-8 pt-4 border-t-2 border-gray-800 break-inside-avoid print:block">
+                      <h3 className="font-bold mb-2 text-sm">Tujuan Pembelajaran (TP) yang Diujikan:</h3>
+                      <ol className="list-decimal pl-5 text-xs space-y-1 text-justify">
                         {subjectObjectives.map((tp, idx) => (
-                          <li key={idx} className="text-gray-800">{tp.text}</li>
+                          <li key={idx} className="text-gray-900">
+                             <span className="font-semibold">TP {idx + 1}</span>: {tp.text}
+                          </li>
                         ))}
                       </ol>
                     </div>
@@ -1110,7 +1091,7 @@
           );
         }
 
-        function TeacherPortal({ settings, classes, subjects, students, grades, objectives, teachers, kktps, remedials, currentTeacher, onLogout }) {
+        function TeacherPortal({ settings, classes, subjects, students, grades, objectives, teachers, kktps, remedials, currentTeacher, showToast, onLogout }) {
           const [activeTab, setActiveTab] = useState('tp');
           
           const navItems = [
@@ -1132,21 +1113,13 @@
                   <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-indigo-700 bg-white">
                      <img src={LOGO_URL} alt="Logo" className="w-full h-full object-cover" />
                   </div>
-                  <h2 className="text-white font-bold text-xl">
-                    Portal Guru
-                  </h2>
+                  <h2 className="text-white font-bold text-xl">Portal Guru</h2>
                 </div>
                 <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
                   {navItems.map(item => (
-                    <button
-                      key={item.id}
-                      onClick={() => setActiveTab(item.id)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                        activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'hover:bg-indigo-800 hover:text-white'
-                      }`}
-                    >
-                      <item.icon />
-                      <span className="font-medium">{item.label}</span>
+                    <button key={item.id} onClick={() => setActiveTab(item.id)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === item.id ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' : 'hover:bg-indigo-800 hover:text-white'}`}>
+                      <item.icon /> <span className="font-medium">{item.label}</span>
                     </button>
                   ))}
                 </nav>
@@ -1159,9 +1132,7 @@
 
               <main className="flex-1 flex flex-col bg-slate-50 min-w-0">
                 <header className="bg-white border-b border-gray-200 p-6 flex justify-between items-center print:hidden">
-                  <h1 className="text-2xl font-bold text-gray-800">
-                    {navItems.find(i => i.id === activeTab)?.label}
-                  </h1>
+                  <h1 className="text-2xl font-bold text-gray-800">{navItems.find(i => i.id === activeTab)?.label}</h1>
                   <div className="flex items-center gap-4">
                      <div className="text-right">
                         <div className="text-sm font-bold text-gray-800">{currentTeacher?.name}</div>
@@ -1174,14 +1145,14 @@
                 </header>
 
                 <div className="p-6 flex-1 flex flex-col overflow-hidden">
-                  {activeTab === 'tp' && <TeacherObjectives subjects={subjects} classes={classes} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} />}
-                  {activeTab === 'input_tugas' && <TeacherInputGrades mode="tugas" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} />}
-                  {activeTab === 'input_ket' && <TeacherInputGrades mode="keterampilan" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} />}
-                  {activeTab === 'input_slm' && <TeacherInputGrades mode="slm" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} />}
-                  {activeTab === 'input_sts' && <TeacherInputGrades mode="sts" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} />}
-                  {activeTab === 'input_sas' && <TeacherInputGrades mode="sas" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} />}
-                  {activeTab === 'remedial' && <TeacherRemedial settings={settings} classes={classes} subjects={subjects} students={students} remedials={remedials} currentTeacher={currentTeacher} />}
-                  {activeTab === 'rekap' && <TeacherInputGrades mode="rekap" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} />}
+                  {activeTab === 'tp' && <TeacherObjectives subjects={subjects} classes={classes} objectives={objectives} kktps={kktps} showToast={showToast} />}
+                  {activeTab === 'input_tugas' && <TeacherInputGrades mode="tugas" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
+                  {activeTab === 'input_ket' && <TeacherInputGrades mode="keterampilan" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
+                  {activeTab === 'input_slm' && <TeacherInputGrades mode="slm" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
+                  {activeTab === 'input_sts' && <TeacherInputGrades mode="sts" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
+                  {activeTab === 'input_sas' && <TeacherInputGrades mode="sas" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
+                  {activeTab === 'remedial' && <TeacherRemedial settings={settings} classes={classes} subjects={subjects} students={students} remedials={remedials} currentTeacher={currentTeacher} showToast={showToast} />}
+                  {activeTab === 'rekap' && <TeacherInputGrades mode="rekap" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
                   {activeTab === 'leger' && <AdminLeger settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} teachers={teachers} objectives={objectives} kktps={kktps} />}
                 </div>
               </main>
@@ -1189,7 +1160,7 @@
           );
         }
 
-        function TeacherObjectives({ subjects, classes, objectives, kktps, currentTeacher }) {
+        function TeacherObjectives({ subjects, classes, objectives, kktps, showToast }) {
           const [selectedClass, setSelectedClass] = useState('');
           const [selectedSubject, setSelectedSubject] = useState('');
           const [objectiveText, setObjectiveText] = useState('');
@@ -1216,21 +1187,10 @@
 
           const handleKktpChange = (val) => {
             const k = Number(val) || 0;
-            if (k === 0) {
-               setKktpForm({ ...kktpForm, kktp: '' });
-               return;
-            }
+            if (k === 0) { setKktpForm({ ...kktpForm, kktp: '' }); return; }
             const interval = Math.round((100 - k) / 3);
             
-            const cMin = k;
-            const cMax = k + interval - 1;
-            const bMin = k + interval;
-            const bMax = k + (interval * 2) - 1;
-            const aMin = k + (interval * 2);
-            const aMax = 100;
-            const dMax = k - 1;
-
-            setKktpForm({ ...kktpForm, kktp: k, aMin, aMax, bMin, bMax, cMin, cMax, dMax });
+            setKktpForm({ ...kktpForm, kktp: k, aMin: k + (interval * 2), aMax: 100, bMin: k + interval, bMax: k + (interval * 2) - 1, cMin: k, cMax: k + interval - 1, dMax: k - 1 });
           };
 
           const handleSaveKktp = async () => {
@@ -1243,11 +1203,9 @@
                    bMin: Number(kktpForm.bMin), bMax: Number(kktpForm.bMax), cMin: Number(kktpForm.cMin), 
                    cMax: Number(kktpForm.cMax), dMax: Number(kktpForm.dMax)
                 };
-                if (kktpForm.docId) {
-                   await updateDoc(getDocRef('kktps', kktpForm.docId), payload);
-                } else {
-                   await addDoc(getColRef('kktps'), payload);
-                }
+                if (kktpForm.docId) await updateDoc(getDocRef('kktps', kktpForm.docId), payload);
+                else await addDoc(getColRef('kktps'), payload);
+                showToast("Pengaturan KKTP berhasil disimpan!");
              } catch (e) { console.error(e); }
              setSavingKktp(false);
           };
@@ -1256,13 +1214,16 @@
             if (!objectiveText.trim() || !selectedClass || !selectedSubject) return;
             try {
               await addDoc(getColRef('objectives'), { text: objectiveText, classId: selectedClass, subjectId: selectedSubject });
+              showToast("Tujuan Pembelajaran (TP) berhasil ditambahkan!");
               setObjectiveText('');
             } catch (e) { console.error(e); }
           };
 
           const handleDeleteTp = async (id) => {
-            try { await deleteDoc(getDocRef('objectives', id)); } 
-            catch (e) { console.error(e); }
+            try { 
+               await deleteDoc(getDocRef('objectives', id)); 
+               showToast("Tujuan Pembelajaran berhasil dihapus.");
+            } catch (e) { console.error(e); }
           };
 
           return (
@@ -1288,7 +1249,6 @@
 
                {selectedClass && selectedSubject ? (
                  <div className="space-y-6">
-                    {/* Pengaturan KKTP */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
                        <div className="flex justify-between items-center mb-4">
                           <h3 className="font-bold text-lg text-gray-800">Kriteria Ketercapaian Tujuan Pembelajaran (KKTP)</h3>
@@ -1296,58 +1256,34 @@
                              <Icons.Save /> {savingKktp ? 'Menyimpan...' : 'Simpan KKTP'}
                           </button>
                        </div>
-                       
                        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 items-center">
                           <div className="bg-slate-50 p-4 rounded-xl border border-slate-200">
                              <label className="block text-sm font-bold text-slate-700 mb-1">Batas KKTP</label>
-                             <input type="number" className="w-full border border-slate-300 rounded-lg p-2 font-bold text-lg outline-none focus:ring-2 focus:ring-slate-500" 
-                                value={kktpForm.kktp} onChange={e => handleKktpChange(e.target.value)} />
+                             <input type="number" className="w-full border border-slate-300 rounded-lg p-2 font-bold text-lg outline-none focus:ring-2 focus:ring-slate-500" value={kktpForm.kktp} onChange={e => handleKktpChange(e.target.value)} />
                           </div>
-                          
                           <div className="bg-green-50 p-4 rounded-xl border border-green-200">
                              <label className="block text-sm font-bold text-green-800 mb-1">A (Sangat Baik)</label>
-                             <div className="flex items-center gap-2">
-                                <input type="number" className="w-16 border border-green-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.aMin} onChange={e=>setKktpForm({...kktpForm, aMin: e.target.value})} />
-                                <span className="text-xs text-gray-500">-</span>
-                                <input type="number" className="w-16 border border-green-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.aMax} onChange={e=>setKktpForm({...kktpForm, aMax: e.target.value})} />
-                             </div>
+                             <div className="flex items-center gap-2"><input type="number" className="w-16 border border-green-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.aMin} onChange={e=>setKktpForm({...kktpForm, aMin: e.target.value})} /><span className="text-xs text-gray-500">-</span><input type="number" className="w-16 border border-green-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.aMax} onChange={e=>setKktpForm({...kktpForm, aMax: e.target.value})} /></div>
                           </div>
-                          
                           <div className="bg-blue-50 p-4 rounded-xl border border-blue-200">
                              <label className="block text-sm font-bold text-blue-800 mb-1">B (Baik)</label>
-                             <div className="flex items-center gap-2">
-                                <input type="number" className="w-16 border border-blue-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.bMin} onChange={e=>setKktpForm({...kktpForm, bMin: e.target.value})} />
-                                <span className="text-xs text-gray-500">-</span>
-                                <input type="number" className="w-16 border border-blue-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.bMax} onChange={e=>setKktpForm({...kktpForm, bMax: e.target.value})} />
-                             </div>
+                             <div className="flex items-center gap-2"><input type="number" className="w-16 border border-blue-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.bMin} onChange={e=>setKktpForm({...kktpForm, bMin: e.target.value})} /><span className="text-xs text-gray-500">-</span><input type="number" className="w-16 border border-blue-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.bMax} onChange={e=>setKktpForm({...kktpForm, bMax: e.target.value})} /></div>
                           </div>
-                          
                           <div className="bg-yellow-50 p-4 rounded-xl border border-yellow-200">
                              <label className="block text-sm font-bold text-yellow-800 mb-1">C (Cukup)</label>
-                             <div className="flex items-center gap-2">
-                                <input type="number" className="w-16 border border-yellow-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.cMin} onChange={e=>setKktpForm({...kktpForm, cMin: e.target.value})} />
-                                <span className="text-xs text-gray-500">-</span>
-                                <input type="number" className="w-16 border border-yellow-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.cMax} onChange={e=>setKktpForm({...kktpForm, cMax: e.target.value})} />
-                             </div>
+                             <div className="flex items-center gap-2"><input type="number" className="w-16 border border-yellow-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.cMin} onChange={e=>setKktpForm({...kktpForm, cMin: e.target.value})} /><span className="text-xs text-gray-500">-</span><input type="number" className="w-16 border border-yellow-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.cMax} onChange={e=>setKktpForm({...kktpForm, cMax: e.target.value})} /></div>
                           </div>
-
                           <div className="bg-red-50 p-4 rounded-xl border border-red-200">
                              <label className="block text-sm font-bold text-red-800 mb-1">D (Kurang)</label>
-                             <div className="flex items-center gap-2">
-                                <span className="text-sm font-medium text-red-700">0 -</span>
-                                <input type="number" className="w-16 border border-red-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.dMax} onChange={e=>setKktpForm({...kktpForm, dMax: e.target.value})} />
-                             </div>
+                             <div className="flex items-center gap-2"><span className="text-sm font-medium text-red-700">0 -</span><input type="number" className="w-16 border border-red-300 rounded p-1 text-center text-sm outline-none" value={kktpForm.dMax} onChange={e=>setKktpForm({...kktpForm, dMax: e.target.value})} /></div>
                           </div>
                        </div>
                     </div>
 
-                    {/* Tujuan Pembelajaran */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
                       <div className="p-4 border-b border-gray-200 bg-gray-50 flex gap-2 shrink-0">
                          <input type="text" className="flex-1 border border-gray-300 rounded-lg p-2 outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500" 
-                            placeholder="Masukkan Tujuan Pembelajaran (TP)... (misal: Peserta didik mampu...)" 
-                            value={objectiveText} onChange={e => setObjectiveText(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && handleAddTp()} />
+                            placeholder="Masukkan Tujuan Pembelajaran (TP)... (misal: Peserta didik mampu...)" value={objectiveText} onChange={e => setObjectiveText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleAddTp()} />
                          <button onClick={handleAddTp} disabled={!objectiveText.trim()} className="bg-indigo-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-indigo-700 disabled:opacity-50 transition-colors whitespace-nowrap flex items-center gap-1">
                             <Icons.Plus /> Tambah TP
                          </button>
@@ -1378,14 +1314,17 @@
           );
         }
 
-        function TeacherInputGrades({ mode, settings, classes, subjects, students, grades, objectives, kktps, currentTeacher }) {
+        function TeacherInputGrades({ mode, settings, classes, subjects, students, grades, objectives, kktps, currentTeacher, showToast }) {
           const [selectedClass, setSelectedClass] = useState('');
           const [selectedSubject, setSelectedSubject] = useState('');
           const [cols, setCols] = useState({ tugas: 1, keterampilan: 1, slm: 1 });
           const [tempGrades, setTempGrades] = useState({});
           const [saving, setSaving] = useState(false);
 
-          const classStudents = useMemo(() => students.filter(s => s.classId === selectedClass), [students, selectedClass]);
+          // PENGURUTAN ABJAD SISWA DENGAN SORT()
+          const classStudents = useMemo(() => {
+             return students.filter(s => s.classId === selectedClass).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          }, [students, selectedClass]);
           
           const currentKktp = kktps.find(k => k.classId === selectedClass && k.subjectId === selectedSubject);
 
@@ -1446,35 +1385,44 @@
             setCols(prev => ({ ...prev, [category]: prev[category] + 1 }));
           };
 
+          // FUNGSI PEMBERSIH ARRAY (Mempertahankan null di tengah, membuang di akhir)
+          const cleanPreservedArray = (arr) => {
+             const mapped = arr.map(v => (v === '' || v === null || v === undefined) ? null : Number(v));
+             while (mapped.length > 0 && mapped[mapped.length - 1] === null) {
+                 mapped.pop();
+             }
+             return mapped;
+          };
+
           const handleSaveAll = async () => {
             if (!auth.currentUser || !selectedClass || !selectedSubject) return;
             setSaving(true);
             try {
               const promises = classStudents.map(student => {
                 const data = tempGrades[student.id];
-                const cleanTugas = data.tugas.map(v => v === '' ? null : Number(v)).filter(v => v !== null);
-                const cleanKet = data.keterampilan.map(v => v === '' ? null : Number(v)).filter(v => v !== null);
-                const cleanSlm = data.slm.map(v => v === '' ? null : Number(v)).filter(v => v !== null);
+                
+                // Jangan gunakan .filter(v => v!==null) agar indeks tetap sejajar!
+                const cleanTugas = cleanPreservedArray(data.tugas);
+                const cleanKet = cleanPreservedArray(data.keterampilan);
+                const cleanSlm = cleanPreservedArray(data.slm);
                 
                 const payload = {
                   studentId: student.id,
                   classId: selectedClass,
                   subjectId: selectedSubject,
-                  tugas: cleanTugas.length ? cleanTugas : [],
-                  keterampilan: cleanKet.length ? cleanKet : [],
-                  slm: cleanSlm.length ? cleanSlm : [],
+                  tugas: cleanTugas,
+                  keterampilan: cleanKet,
+                  slm: cleanSlm,
                   sts: data.sts !== '' ? Number(data.sts) : null,
                   sas: data.sas !== '' ? Number(data.sas) : null,
                 };
 
-                if (data.id) {
-                  return updateDoc(getDocRef('grades', data.id), payload);
-                } else {
-                  return addDoc(getColRef('grades'), payload);
-                }
+                if (data.id) return updateDoc(getDocRef('grades', data.id), payload);
+                else return addDoc(getColRef('grades'), payload);
               });
 
               await Promise.all(promises);
+              showToast("Data nilai berhasil disimpan!");
             } catch (e) {
               console.error(e);
             }
@@ -1487,8 +1435,7 @@
                 <div className="flex-1 min-w-[200px]">
                   <label className="block text-sm font-bold text-gray-700 mb-1">Kelas</label>
                   <select className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                    value={selectedClass} onChange={e => setSelectedClass(e.target.value)}
-                  >
+                    value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
                     <option value="">-- Pilih Kelas --</option>
                     {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
@@ -1496,8 +1443,7 @@
                 <div className="flex-1 min-w-[200px]">
                   <label className="block text-sm font-bold text-gray-700 mb-1">Mata Pelajaran</label>
                   <select className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-blue-500 outline-none bg-white"
-                    value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}
-                  >
+                    value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
                     <option value="">-- Pilih Mapel --</option>
                     {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
@@ -1587,7 +1533,9 @@
                             
                             const safeAvg = (arr) => {
                               if (!arr || !Array.isArray(arr) || arr.length === 0) return 0;
-                              const nums = arr.map(Number).filter(n => !isNaN(n));
+                              const validVals = arr.filter(v => v !== null && v !== '');
+                              if (validVals.length === 0) return 0;
+                              const nums = validVals.map(Number).filter(n => !isNaN(n));
                               if (nums.length === 0) return 0;
                               return nums.reduce((a, b) => a + b, 0) / nums.length;
                             };
@@ -1603,7 +1551,7 @@
                                 {mode === 'tugas' && Array.from({length: cols.tugas}).map((_, i) => (
                                   <td key={`t-${i}`} className="border border-gray-200 p-1">
                                     <input type="number" min="0" max="100" className="w-full text-center p-1 rounded border-transparent focus:border-blue-500 focus:ring-1 focus:ring-blue-500 bg-transparent hover:bg-gray-50 outline-none transition-colors"
-                                      value={data.tugas[i] !== undefined ? data.tugas[i] : ''} onChange={e => handleGradeChange(student.id, 'tugas', i, e.target.value)} />
+                                      value={data.tugas[i] !== undefined && data.tugas[i] !== null ? data.tugas[i] : ''} onChange={e => handleGradeChange(student.id, 'tugas', i, e.target.value)} />
                                   </td>
                                 ))}
                                 {mode === 'rekap' && <td className="border border-gray-200 p-2 text-center bg-blue-50/30 font-medium">{avgT.toFixed(1)}</td>}
@@ -1611,7 +1559,7 @@
                                 {mode === 'keterampilan' && Array.from({length: cols.keterampilan}).map((_, i) => (
                                   <td key={`k-${i}`} className="border border-gray-200 p-1">
                                     <input type="number" min="0" max="100" className="w-full text-center p-1 rounded border-transparent focus:border-orange-500 focus:ring-1 focus:ring-orange-500 bg-transparent hover:bg-gray-50 outline-none transition-colors"
-                                      value={data.keterampilan[i] !== undefined ? data.keterampilan[i] : ''} onChange={e => handleGradeChange(student.id, 'keterampilan', i, e.target.value)} />
+                                      value={data.keterampilan[i] !== undefined && data.keterampilan[i] !== null ? data.keterampilan[i] : ''} onChange={e => handleGradeChange(student.id, 'keterampilan', i, e.target.value)} />
                                   </td>
                                 ))}
                                 {mode === 'rekap' && <td className="border border-gray-200 p-2 text-center bg-orange-50/30 font-medium">{avgK.toFixed(1)}</td>}
@@ -1619,7 +1567,7 @@
                                 {mode === 'slm' && Array.from({length: cols.slm}).map((_, i) => (
                                   <td key={`s-${i}`} className="border border-gray-200 p-1">
                                     <input type="number" min="0" max="100" className="w-full text-center p-1 rounded border-transparent focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-transparent hover:bg-gray-50 outline-none transition-colors"
-                                      value={data.slm[i] !== undefined ? data.slm[i] : ''} onChange={e => handleGradeChange(student.id, 'slm', i, e.target.value)} />
+                                      value={data.slm[i] !== undefined && data.slm[i] !== null ? data.slm[i] : ''} onChange={e => handleGradeChange(student.id, 'slm', i, e.target.value)} />
                                   </td>
                                 ))}
                                 {mode === 'rekap' && <td className="border border-gray-200 p-2 text-center bg-purple-50/30 font-medium">{avgS.toFixed(1)}</td>}
@@ -1666,7 +1614,7 @@
           );
         }
 
-        function TeacherRemedial({ settings, classes, subjects, students, remedials, currentTeacher }) {
+        function TeacherRemedial({ settings, classes, subjects, students, remedials, currentTeacher, showToast }) {
           const [selectedType, setSelectedType] = useState('SLM'); 
           const [slmCols, setSlmCols] = useState(1);
           const [selectedClass, setSelectedClass] = useState('');
@@ -1675,7 +1623,10 @@
           const [katrolMin, setKatrolMin] = useState(75);
           const [katrolMax, setKatrolMax] = useState(85);
 
-          const classStudents = useMemo(() => students.filter(s => s.classId === selectedClass), [students, selectedClass]);
+          // PENGURUTAN ABJAD SISWA DENGAN SORT()
+          const classStudents = useMemo(() => {
+             return students.filter(s => s.classId === selectedClass).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+          }, [students, selectedClass]);
           
           const [tempRemedial, setTempRemedial] = useState({});
           const [saving, setSaving] = useState(false);
@@ -1725,12 +1676,12 @@
                  const arr = [...(current.slm || [])];
                  const obj = arr[slmIndex] || { original: '', remedial: '', final: '' };
                  obj[field] = value;
-                 if (field === 'remedial') obj.final = hitungKatrol(value); // Auto katrol
+                 if (field === 'remedial') obj.final = hitungKatrol(value); 
                  arr[slmIndex] = obj;
                  return { ...prev, [studentId]: { slm: arr } };
               } else {
                  const newObj = { ...current, [field]: value };
-                 if (field === 'remedial') newObj.final = hitungKatrol(value); // Auto katrol
+                 if (field === 'remedial') newObj.final = hitungKatrol(value); 
                  return { ...prev, [studentId]: newObj };
               }
             });
@@ -1769,13 +1720,12 @@
                    }
                 });
                 await Promise.all(promises);
+                showToast("Nilai Remedial berhasil disimpan!");
              } catch (e) { console.error(e); }
              setSaving(false);
           };
 
-          const handlePrint = () => {
-             window.print();
-          };
+          const handlePrint = () => { window.print(); };
 
           const className = classes.find(c => c.id === selectedClass)?.name || '';
           const subjectName = subjects.find(s => s.id === selectedSubject)?.name || '';
@@ -1884,9 +1834,6 @@
                          {classStudents.map((student, idx) => {
                             const data = tempRemedial[student.id] || (selectedType==='SLM'? {slm:[]} : {original:'', remedial:'', final:''});
                             
-                            // Check jika data kosong sepenuhnya (untuk print view, biar tidak ngeprint tabel kosong semua kalau tidak mau)
-                            // Namun untuk konsistensi form, kita biarkan saja nampak semua siswa.
-                            
                             return (
                               <tr key={student.id} className="hover:bg-gray-50/50">
                                 <td className="border border-gray-200 print:border-gray-800 p-2 text-left font-medium sticky left-0 bg-white print:bg-transparent z-10">{idx+1}. {student.name}</td>
@@ -1917,12 +1864,12 @@
                    </div>
                    
                    <div className="hidden print:flex justify-end mt-12">
-                      <div className="text-center w-64">
+                      <div className="text-center w-auto px-4">
                         <p>Mengetahui,</p>
                         <p>Guru Mata Pelajaran</p>
                         <div className="h-24"></div>
-                        <p className="font-bold underline">{currentTeacher?.name || '..................................'}</p>
-                        <p>NIP. {currentTeacher?.nip || '........................'}</p>
+                        <p className="font-bold underline whitespace-nowrap">{currentTeacher?.name || '..................................'}</p>
+                        <p className="whitespace-nowrap">NIP. {currentTeacher?.nip || '........................'}</p>
                       </div>
                    </div>
                    
