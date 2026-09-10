@@ -20,6 +20,11 @@
     @keyframes zoomIn { from { transform: scale(0.95); } to { transform: scale(1); } }
     .animate-in.fade-in { animation: fadeIn 0.2s ease-in-out; }
     .animate-in.zoom-in-95 { animation: zoomIn 0.2s ease-in-out; }
+    
+    @media print {
+      body { background-color: white !important; }
+      @page { margin: 1cm; }
+    }
   </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
@@ -31,7 +36,7 @@
     </div>
   </div>
 
-  <!-- 1. Memuat Firebase secara terpisah (Native Browser ES Module) agar tidak diblokir/diganggu oleh Babel -->
+  <!-- Memuat Firebase secara terpisah (Native Browser ES Module) -->
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
@@ -42,7 +47,7 @@
   </script>
 
   <script type="text/babel" data-type="module">
-    // 2. Tunggu hingga Firebase selesai dimuat sebelum menjalankan React
+    // Tunggu hingga Firebase selesai dimuat sebelum menjalankan React
     const initAppInterval = setInterval(() => {
       if (window.FirebaseAPI) {
         clearInterval(initAppInterval);
@@ -69,7 +74,6 @@
         const getColRef = (colName) => collection(db, 'artifacts', appId, 'public', 'data', colName);
         const getDocRef = (colName, docId) => doc(db, 'artifacts', appId, 'public', 'data', colName, docId);
 
-        // URL Logo Baru
         const LOGO_URL = "https://www.image2url.com/r2/default/images/1789005916309-543685e2-3c1c-4490-80ed-29ecdf376e90.jpeg";
 
         const Icons = {
@@ -481,21 +485,15 @@
               }
 
               if (activeSubTab === 'teachers') {
-                let subjectId = '';
-                const subjectName = newItem.subjectName.trim();
-                if (subjectName) {
-                  const existingSubj = subjects.find(s => s.name.toLowerCase() === subjectName.toLowerCase());
-                  if (existingSubj) {
-                    subjectId = existingSubj.id;
-                  } else {
-                    const subjRef = await addDoc(getColRef('subjects'), { name: subjectName });
-                    subjectId = subjRef.id;
-                  }
-                }
+                // Guru tidak lagi membuat ID Mapel di Master Data, hanya merekam subjectName sebagai text
                 payload = { 
-                  name: newItem.name, nip: newItem.nip || '', subjectId: subjectId, 
+                  name: newItem.name, nip: newItem.nip || '', subjectName: newItem.subjectName || '', 
                   username: newItem.username || '', password: newItem.password || '' 
                 };
+              }
+
+              if (activeSubTab === 'subjects') {
+                 payload = { name: newItem.name };
               }
 
               await addDoc(getColRef(colName), payload);
@@ -534,19 +532,12 @@
               }
 
               if (activeSubTab === 'teachers') {
-                 let subjectId = editItem.subjectId;
-                 if (editItem.subjectName) {
-                   const subjectName = editItem.subjectName.trim();
-                   const existingSubj = subjects.find(s => s.name.toLowerCase() === subjectName.toLowerCase());
-                   if (existingSubj) {
-                     subjectId = existingSubj.id;
-                   } else {
-                     const subjRef = await addDoc(getColRef('subjects'), { name: subjectName });
-                     subjectId = subjRef.id;
-                   }
-                 }
-                payload = { name: editItem.name, nip: editItem.nip || '', subjectId: subjectId || '', username: editItem.username || '', password: editItem.password || '' };
-          }
+                 payload = { name: editItem.name, nip: editItem.nip || '', subjectName: editItem.subjectName || '', username: editItem.username || '', password: editItem.password || '' };
+              }
+
+              if (activeSubTab === 'subjects') {
+                 payload = { name: editItem.name };
+              }
 
           await updateDoc(getDocRef(colName, editItem.id), payload);
           setEditModalOpen(false);
@@ -559,7 +550,6 @@
           let col = '';
           for (let i = 0; i < str.length; i++) {
               let cc = str[i], nc = str[i+1];
-              // Abaikan koma jika ada di dalam tanda kutip
               if (cc === '"' && quote && nc === '"') { col += cc; ++i; continue; }
               if (cc === '"') { quote = !quote; continue; }
               if (cc === ',' && !quote) { arr.push(col.trim()); col = ''; continue; }
@@ -577,7 +567,7 @@
           const csvData = event.target.result;
           const rows = csvData.split(/\r?\n/);
           for (let i = 1; i < rows.length; i++) {
-            if (!rows[i].trim()) continue; // Lewati baris kosong
+            if (!rows[i].trim()) continue; 
             const cols = parseCSVRow(rows[i]);
             if (cols.length > 0 && cols[0] && cols[0] !== '') {
               const name = cols[0];
@@ -599,19 +589,10 @@
                  const nip = cols[1] || '';
                  const username = cols[2] || '';
                  const password = cols[3] || '';
-                 const subjectName = cols[4] || '';
-                 let subjectId = '';
-                 if (subjectName) {
-                   const existingSubj = subjects.find(s => s.name.toLowerCase() === subjectName.toLowerCase());
-                   if (existingSubj) {
-                     subjectId = existingSubj.id;
-                   } else {
-                     const subjRef = await addDoc(getColRef('subjects'), { name: subjectName });
-                     subjectId = subjRef.id;
-                     subjects.push({ id: subjRef.id, name: subjectName });
-                   }
-                 }
-                 await addDoc(getColRef('teachers'), { name, nip, username, password, subjectId });
+                 const subjectName = cols[4] || ''; // Hanya merekam nama mapel sebagai text
+                 await addDoc(getColRef('teachers'), { name, nip, username, password, subjectName });
+              } else if (activeSubTab === 'subjects') {
+                 await addDoc(getColRef('subjects'), { name });
               }
             }
           }
@@ -622,9 +603,10 @@
 
       const downloadTemplate = () => {
          let csvContent = "data:text/csv;charset=utf-8,";
-         // Menambahkan tanda kutip ganda pada template agar gelar aman dari split koma
          if (activeSubTab === 'students') csvContent += "Nama Siswa,Kelas\n\"Budi Santoso\",10A\n\"Siti Aminah\",10B";
-         if (activeSubTab === 'teachers') csvContent += "Nama Guru,NIP,Username,Password,Mata Pelajaran\n\"Dr. Budi, M.Pd.\",12345,budi,pass123,Matematika\n\"Bu Siti, S.Pd.\",67890,siti,pass456,Bahasa Indonesia";
+         if (activeSubTab === 'teachers') csvContent += "Nama Guru,NIP,Username,Password,Mata Pelajaran (Tampilan)\n\"Dr. Budi, M.Pd.\",12345,budi,pass123,Matematika\n\"Bu Siti, S.Pd.\",67890,siti,pass456,Bahasa Indonesia";
+         if (activeSubTab === 'subjects') csvContent += "Nama Mata Pelajaran\n\"Matematika\"\n\"Bahasa Indonesia\"";
+         
          const encodedUri = encodeURI(csvContent);
          const link = document.createElement("a");
          link.setAttribute("href", encodedUri);
@@ -637,16 +619,15 @@
       const subTabs = [
         { id: 'students', label: 'Data Siswa' },
         { id: 'teachers', label: 'Data Guru' },
+        { id: 'subjects', label: 'Data Mata Pelajaran' },
       ];
 
-      let filteredData = activeSubTab === 'students' ? students : teachers;
+      let filteredData = activeSubTab === 'students' ? students : (activeSubTab === 'teachers' ? teachers : subjects);
       
-      // Terapkan Filter Kelas pada mode Siswa
       if (activeSubTab === 'students' && filterClass) {
          filteredData = filteredData.filter(s => s.classId === filterClass);
       }
 
-      // Potong data untuk Pagenasi
       const indexOfLastItem = currentPage * itemsPerPage;
       const indexOfFirstItem = indexOfLastItem - itemsPerPage;
       const currentData = filteredData.slice(indexOfFirstItem, indexOfLastItem);
@@ -700,6 +681,7 @@
                     <th className="p-4 font-semibold">Nama</th>
                     {activeSubTab === 'students' && <th className="p-4 font-semibold">Kelas</th>}
                     {activeSubTab === 'teachers' && <th className="p-4 font-semibold">Mapel & Info Akun</th>}
+                    {activeSubTab === 'subjects' && <th className="p-4 font-semibold">Keterangan</th>}
                     <th className="p-4 font-semibold w-24 text-center">Aksi</th>
                   </tr>
                 </thead>
@@ -709,7 +691,6 @@
                   ) : (
                     currentData.map((item, idx) => (
                       <tr key={item.id} className="hover:bg-gray-50/50">
-                        {/* Menampilkan nomor urut berlanjut lintas halaman */}
                         <td className="p-4 text-gray-500">{indexOfFirstItem + idx + 1}</td>
                         <td className="p-4 font-medium text-gray-800">{item.name}</td>
                         {activeSubTab === 'students' && (
@@ -719,16 +700,18 @@
                         )}
                         {activeSubTab === 'teachers' && (
                           <td className="p-4 text-gray-600 text-sm">
-                            <div className="font-semibold text-indigo-600">{subjects.find(s => s.id === item.subjectId)?.name || 'Belum diatur Mapel'}</div>
+                            <div className="font-semibold text-indigo-600">{item.subjectName || 'Belum diatur Mapel'}</div>
                             <div>NIP: {item.nip || '-'}</div>
                             <div className="text-xs text-gray-500 mt-1">User: <span className="font-mono text-gray-700">{item.username}</span> | Pass: <span className="font-mono text-gray-700">{item.password}</span></div>
                           </td>
                         )}
+                        {activeSubTab === 'subjects' && (
+                          <td className="p-4 text-gray-600 text-sm font-medium">Mata Pelajaran Utama</td>
+                        )}
                         <td className="p-4 text-center whitespace-nowrap">
                           <button onClick={() => { 
                              const className = classes.find(c => c.id === item.classId)?.name || '';
-                             const subjectName = subjects.find(s => s.id === item.subjectId)?.name || '';
-                             setEditItem({...item, className, subjectName}); 
+                             setEditItem({...item, className}); 
                              setEditModalOpen(true); 
                           }} className="text-blue-400 hover:text-blue-600 p-1 mr-2">Edit</button>
                           <button onClick={() => handleDelete(item.id, activeSubTab)} className="text-red-400 hover:text-red-600 p-1">Hapus</button>
@@ -755,6 +738,7 @@
             )}
           </div>
 
+          {}
           <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={`Tambah Data ${subTabs.find(t=>t.id===activeSubTab)?.label.replace('Data ', '')}`}>
                 <div className="space-y-4">
                   <div>
@@ -777,7 +761,7 @@
                           value={newItem.nip} onChange={e => setNewItem({...newItem, nip: e.target.value})} />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-1">Mata Pelajaran</label>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Mata Pelajaran (Tampilan Dashboard)</label>
                         <input type="text" className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none"
                           value={newItem.subjectName} onChange={e => setNewItem({...newItem, subjectName: e.target.value})} placeholder="Contoh: Matematika" />
                       </div>
@@ -799,6 +783,7 @@
                 </div>
               </Modal>
 
+              {}
               <Modal isOpen={editModalOpen} onClose={() => setEditModalOpen(false)} title={`Edit Data ${subTabs.find(t=>t.id===activeSubTab)?.label.replace('Data ', '')}`}>
                 {editItem && (
                   <div className="space-y-4">
@@ -822,7 +807,7 @@
                             value={editItem.nip} onChange={e => setEditItem({...editItem, nip: e.target.value})} />
                         </div>
                         <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Mata Pelajaran</label>
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Mata Pelajaran (Tampilan Dashboard)</label>
                           <input type="text" className="w-full border border-gray-300 rounded-lg p-2.5 focus:ring-2 focus:ring-indigo-500 outline-none"
                             value={editItem.subjectName} onChange={e => setEditItem({...editItem, subjectName: e.target.value})} placeholder="Contoh: Matematika" />
                         </div>
@@ -855,7 +840,8 @@
               subjects.forEach(s => {
                 const count = grades.filter(g => g.classId === c.id && g.subjectId === s.id).length;
                 if (count > 0) {
-                  const teacher = teachers?.find(t => t.subjectId === s.id);
+                  // Mencocokkan nama guru berdasarkan kesamaan teks subjectName (string) dan nama mapel di master data
+                  const teacher = teachers?.find(t => t.subjectName && t.subjectName.toLowerCase() === s.name.toLowerCase());
                   status.push({ class: c.name, subject: s.name, count, teacherName: teacher ? teacher.name : 'Guru Mapel' });
                 }
               });
@@ -863,22 +849,38 @@
             return status;
           }, [grades, classes, subjects, teachers]);
 
+          const handlePrint = () => {
+            window.print();
+          };
+
           return (
             <div className="space-y-6 animate-in fade-in duration-300">
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden p-6">
-                <h3 className="text-lg font-bold mb-4 text-gray-800">Laporan Penginputan Nilai (Guru Mapel)</h3>
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden p-6 print:p-0 print:border-none print:shadow-none">
+                
+                <div className="flex justify-between items-center mb-4 print:hidden">
+                  <h3 className="text-lg font-bold text-gray-800">Laporan Penginputan Nilai (Guru Mapel)</h3>
+                  <button onClick={handlePrint} className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg font-semibold hover:bg-slate-900 transition-colors">
+                    <Icons.Printer /> Cetak PDF
+                  </button>
+                </div>
+                
+                <div className="hidden print:block text-center mb-6 pb-4 border-b-2 border-gray-800">
+                  <h2 className="text-xl font-bold uppercase tracking-wider">LAPORAN STATUS PENGINPUTAN NILAI</h2>
+                  <p className="text-gray-600 mt-1">Data Guru Mata Pelajaran yang Telah Menyelesaikan Input Nilai</p>
+                </div>
+
                 {inputStatus.length === 0 ? (
-                  <div className="text-center p-8 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl">Belum ada guru mapel yang menginput nilai.</div>
+                  <div className="text-center p-8 text-gray-400 border-2 border-dashed border-gray-200 rounded-xl print:border-none">Belum ada guru mapel yang menginput nilai.</div>
                 ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 print:grid-cols-2 print:gap-4">
                     {inputStatus.map((stat, idx) => (
-                      <div key={idx} className="p-4 border border-indigo-100 bg-indigo-50/30 rounded-xl flex items-center justify-between">
+                      <div key={idx} className="p-4 border border-indigo-100 bg-indigo-50/30 rounded-xl flex items-center justify-between print:border-gray-300 print:bg-white print:break-inside-avoid">
                         <div>
-                          <div className="text-sm text-indigo-500 font-bold mb-1">{stat.class}</div>
+                          <div className="text-sm text-indigo-500 font-bold mb-1 print:text-gray-600">{stat.class}</div>
                           <div className="font-semibold text-gray-800">{stat.subject}</div>
-                          <div className="text-xs text-gray-500 mt-1">Oleh: {stat.teacherName}</div>
+                          <div className="text-xs text-gray-700 font-medium mt-1">Oleh: {stat.teacherName}</div>
                         </div>
-                        <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1">
+                        <div className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1 print:border print:border-gray-300 print:bg-white print:text-gray-800">
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path></svg>
                           Tersimpan
                         </div>
@@ -964,7 +966,7 @@
             window.print();
           };
 
-          const selectedTeacher = isMapelLeger ? teachers?.find(t => t.subjectId === selectedSubject) : null;
+          const selectedTeacher = isMapelLeger ? teachers?.find(t => t.subjectName && t.subjectName.toLowerCase() === targetSubjects[0]?.name.toLowerCase()) : null;
           const subjectObjectives = isMapelLeger ? objectives?.filter(o => o.subjectId === selectedSubject && o.classId === selectedClass) : [];
 
           return (
@@ -1125,7 +1127,7 @@
 
           return (
             <div className="flex w-full min-h-screen">
-              <aside className="w-64 bg-indigo-900 text-indigo-100 flex flex-col">
+              <aside className="w-64 bg-indigo-900 text-indigo-100 flex flex-col print:hidden">
                 <div className="p-6 border-b border-indigo-800 flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0 border border-indigo-700 bg-white">
                      <img src={LOGO_URL} alt="Logo" className="w-full h-full object-cover" />
@@ -1163,7 +1165,7 @@
                   <div className="flex items-center gap-4">
                      <div className="text-right">
                         <div className="text-sm font-bold text-gray-800">{currentTeacher?.name}</div>
-                        <div className="text-xs font-medium text-blue-600">{subjects.find(s=>s.id === currentTeacher?.subjectId)?.name || 'Guru Mapel'}</div>
+                        <div className="text-xs font-medium text-blue-600">{currentTeacher?.subjectName || 'Guru Mapel'}</div>
                      </div>
                      <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold">
                         {currentTeacher?.name?.charAt(0) || 'G'}
@@ -1178,7 +1180,7 @@
                   {activeTab === 'input_slm' && <TeacherInputGrades mode="slm" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} />}
                   {activeTab === 'input_sts' && <TeacherInputGrades mode="sts" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} />}
                   {activeTab === 'input_sas' && <TeacherInputGrades mode="sas" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} />}
-                  {activeTab === 'remedial' && <TeacherRemedial classes={classes} subjects={subjects} students={students} remedials={remedials} currentTeacher={currentTeacher} />}
+                  {activeTab === 'remedial' && <TeacherRemedial settings={settings} classes={classes} subjects={subjects} students={students} remedials={remedials} currentTeacher={currentTeacher} />}
                   {activeTab === 'rekap' && <TeacherInputGrades mode="rekap" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} />}
                   {activeTab === 'leger' && <AdminLeger settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} teachers={teachers} objectives={objectives} kktps={kktps} />}
                 </div>
@@ -1189,20 +1191,17 @@
 
         function TeacherObjectives({ subjects, classes, objectives, kktps, currentTeacher }) {
           const [selectedClass, setSelectedClass] = useState('');
+          const [selectedSubject, setSelectedSubject] = useState('');
           const [objectiveText, setObjectiveText] = useState('');
           
-          // Form State untuk KKTP
           const [kktpForm, setKktpForm] = useState({ kktp: 75, aMin: 92, aMax: 100, bMin: 84, bMax: 91, cMin: 75, cMax: 83, dMax: 74, docId: null });
           const [savingKktp, setSavingKktp] = useState(false);
 
-          const currentSubjectId = currentTeacher?.subjectId;
-          const currentSubject = subjects.find(s => s.id === currentSubjectId);
-          const filteredObjectives = objectives.filter(o => o.subjectId === currentSubjectId && o.classId === selectedClass);
+          const filteredObjectives = objectives.filter(o => o.subjectId === selectedSubject && o.classId === selectedClass);
 
-          // Efek untuk memuat pengaturan KKTP saat kelas dipilih
           useEffect(() => {
-             if (selectedClass && currentSubjectId) {
-                const setting = kktps.find(k => k.classId === selectedClass && k.subjectId === currentSubjectId);
+             if (selectedClass && selectedSubject) {
+                const setting = kktps.find(k => k.classId === selectedClass && k.subjectId === selectedSubject);
                 if (setting) {
                    setKktpForm({
                       kktp: setting.kktp, aMin: setting.aMin, aMax: setting.aMax,
@@ -1213,9 +1212,8 @@
                    setKktpForm({ kktp: 75, aMin: 92, aMax: 100, bMin: 84, bMax: 91, cMin: 75, cMax: 83, dMax: 74, docId: null });
                 }
              }
-          }, [selectedClass, currentSubjectId, kktps]);
+          }, [selectedClass, selectedSubject, kktps]);
 
-          // Kalkulasi otomatis rentang nilai saat input KKTP berubah
           const handleKktpChange = (val) => {
             const k = Number(val) || 0;
             if (k === 0) {
@@ -1236,11 +1234,11 @@
           };
 
           const handleSaveKktp = async () => {
-             if (!selectedClass || !currentSubjectId) return;
+             if (!selectedClass || !selectedSubject) return;
              setSavingKktp(true);
              try {
                 const payload = {
-                   classId: selectedClass, subjectId: currentSubjectId,
+                   classId: selectedClass, subjectId: selectedSubject,
                    kktp: Number(kktpForm.kktp), aMin: Number(kktpForm.aMin), aMax: Number(kktpForm.aMax),
                    bMin: Number(kktpForm.bMin), bMax: Number(kktpForm.bMax), cMin: Number(kktpForm.cMin), 
                    cMax: Number(kktpForm.cMax), dMax: Number(kktpForm.dMax)
@@ -1255,9 +1253,9 @@
           };
 
           const handleAddTp = async () => {
-            if (!objectiveText.trim() || !selectedClass || !currentSubjectId) return;
+            if (!objectiveText.trim() || !selectedClass || !selectedSubject) return;
             try {
-              await addDoc(getColRef('objectives'), { text: objectiveText, classId: selectedClass, subjectId: currentSubjectId });
+              await addDoc(getColRef('objectives'), { text: objectiveText, classId: selectedClass, subjectId: selectedSubject });
               setObjectiveText('');
             } catch (e) { console.error(e); }
           };
@@ -1280,13 +1278,15 @@
                  </div>
                  <div className="flex-1 min-w-[200px]">
                     <label className="block text-sm font-bold text-gray-700 mb-1">Mata Pelajaran</label>
-                    <div className="w-full border border-gray-200 bg-gray-50 rounded-lg p-2 text-gray-600 font-medium h-[42px] flex items-center">
-                       {currentSubject?.name || 'Belum diatur (Hubungi Admin)'}
-                    </div>
+                    <select className="w-full border border-gray-300 rounded-lg p-2 focus:ring-2 focus:ring-indigo-500 outline-none bg-white h-[42px]"
+                      value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
+                      <option value="">-- Pilih Mapel --</option>
+                      {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
                  </div>
                </div>
 
-               {selectedClass ? (
+               {selectedClass && selectedSubject ? (
                  <div className="space-y-6">
                     {/* Pengaturan KKTP */}
                     <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
@@ -1371,7 +1371,7 @@
                  </div>
                ) : (
                  <div className="flex-1 flex items-center justify-center bg-white rounded-xl border border-gray-200 border-dashed p-10">
-                    <p className="text-gray-400 text-lg font-medium">Silakan pilih Kelas terlebih dahulu untuk mengelola TP dan KKTP.</p>
+                    <p className="text-gray-400 text-lg font-medium">Silakan pilih Kelas dan Mata Pelajaran untuk mengelola TP dan KKTP.</p>
                  </div>
                )}
             </div>
@@ -1380,14 +1380,13 @@
 
         function TeacherInputGrades({ mode, settings, classes, subjects, students, grades, objectives, kktps, currentTeacher }) {
           const [selectedClass, setSelectedClass] = useState('');
-          const [selectedSubject, setSelectedSubject] = useState(currentTeacher?.subjectId || '');
+          const [selectedSubject, setSelectedSubject] = useState('');
           const [cols, setCols] = useState({ tugas: 1, keterampilan: 1, slm: 1 });
           const [tempGrades, setTempGrades] = useState({});
           const [saving, setSaving] = useState(false);
 
           const classStudents = useMemo(() => students.filter(s => s.classId === selectedClass), [students, selectedClass]);
           
-          // Cari pengaturan KKTP untuk predikat
           const currentKktp = kktps.find(k => k.classId === selectedClass && k.subjectId === selectedSubject);
 
           const getPredikat = (nilai) => {
@@ -1667,13 +1666,12 @@
           );
         }
 
-        function TeacherRemedial({ classes, subjects, students, remedials, currentTeacher }) {
+        function TeacherRemedial({ settings, classes, subjects, students, remedials, currentTeacher }) {
           const [selectedType, setSelectedType] = useState('SLM'); 
           const [slmCols, setSlmCols] = useState(1);
           const [selectedClass, setSelectedClass] = useState('');
-          const [selectedSubject, setSelectedSubject] = useState(currentTeacher?.subjectId || '');
+          const [selectedSubject, setSelectedSubject] = useState('');
           
-          // Rentang Katrol
           const [katrolMin, setKatrolMin] = useState(75);
           const [katrolMax, setKatrolMax] = useState(85);
 
@@ -1709,7 +1707,6 @@
              if (selectedType === 'SLM') setSlmCols(maxSlm);
           }, [selectedClass, selectedSubject, selectedType, classStudents, remedials]);
 
-          // Rumus Katrol Otomatis
           const hitungKatrol = (nilaiRemed) => {
              if (!nilaiRemed) return '';
              const n = Number(nilaiRemed);
@@ -1776,12 +1773,19 @@
              setSaving(false);
           };
 
+          const handlePrint = () => {
+             window.print();
+          };
+
+          const className = classes.find(c => c.id === selectedClass)?.name || '';
+          const subjectName = subjects.find(s => s.id === selectedSubject)?.name || '';
+
           return (
             <div className="flex flex-col h-full space-y-4 animate-in fade-in duration-300">
-               <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-end shrink-0">
+               <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex flex-wrap gap-4 items-end shrink-0 print:hidden">
                  <div>
                     <label className="block text-sm font-bold text-gray-700 mb-1">Jenis Remedial</label>
-                    <select className="w-full border border-gray-300 rounded-lg p-2 outline-none"
+                    <select className="w-full border border-gray-300 rounded-lg p-2 outline-none bg-white"
                       value={selectedType} onChange={e => setSelectedType(e.target.value)}>
                       <option value="SLM">Sumatif Lingkup Materi (SLM)</option>
                       <option value="STS">Sumatif Tengah Semester (STS)</option>
@@ -1790,14 +1794,21 @@
                  </div>
                  <div className="flex-1 min-w-[150px]">
                     <label className="block text-sm font-bold text-gray-700 mb-1">Kelas</label>
-                    <select className="w-full border border-gray-300 rounded-lg p-2 outline-none"
+                    <select className="w-full border border-gray-300 rounded-lg p-2 outline-none bg-white"
                       value={selectedClass} onChange={e => setSelectedClass(e.target.value)}>
                       <option value="">-- Pilih Kelas --</option>
                       {classes.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                  </div>
+                 <div className="flex-1 min-w-[150px]">
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Mata Pelajaran</label>
+                    <select className="w-full border border-gray-300 rounded-lg p-2 outline-none bg-white"
+                      value={selectedSubject} onChange={e => setSelectedSubject(e.target.value)}>
+                      <option value="">-- Pilih Mapel --</option>
+                      {subjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                    </select>
+                 </div>
                  
-                 {/* Input Katrol */}
                  <div className="flex items-center gap-2 bg-yellow-50 p-2 rounded-lg border border-yellow-200">
                     <div>
                        <label className="block text-xs font-bold text-yellow-800 mb-1">Katrol Min</label>
@@ -1809,46 +1820,62 @@
                     </div>
                  </div>
 
-                 <button onClick={handleSave} disabled={saving || !selectedClass} className="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors h-[42px] disabled:opacity-50">
+                 <button onClick={handleSave} disabled={saving || !selectedClass || !selectedSubject} className="bg-green-600 text-white px-6 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors h-[42px] disabled:opacity-50">
                    {saving ? 'Menyimpan...' : 'Simpan Remedial'}
+                 </button>
+                 
+                 <button onClick={handlePrint} disabled={!selectedClass || !selectedSubject} className="flex items-center gap-2 bg-slate-800 text-white px-4 py-2 rounded-lg font-semibold hover:bg-slate-900 transition-colors h-[42px] disabled:opacity-50">
+                   <Icons.Printer /> Cetak PDF
                  </button>
                </div>
 
                {selectedClass && selectedSubject ? (
-                 <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden">
-                   <div className="p-3 border-b border-gray-200 bg-red-50 text-red-700 font-semibold text-sm shrink-0 flex justify-between items-center">
+                 <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col overflow-hidden print:border-none print:shadow-none print:p-0">
+                   
+                   <div className="hidden print:block text-center mb-6 pb-4 border-b-2 border-gray-800">
+                      <h1 className="text-2xl font-bold uppercase tracking-wider">{settings.schoolName}</h1>
+                      <h2 className="text-xl font-bold mt-2">LAPORAN PELAKSANAAN REMEDIAL</h2>
+                      <div className="flex justify-center gap-6 mt-2 font-semibold text-gray-800">
+                         <p>Mata Pelajaran: {subjectName}</p>
+                         <p>Kelas: {className}</p>
+                         <p>Jenis: {selectedType}</p>
+                      </div>
+                   </div>
+
+                   <div className="p-3 border-b border-gray-200 bg-red-50 text-red-700 font-semibold text-sm shrink-0 flex justify-between items-center print:hidden">
                      <span>Catatan: Nilai Remedial ini berdiri sendiri dan tidak menimpa nilai di buku induk. Nilai akhir dihitung otomatis berdasarkan rentang katrol.</span>
                      {selectedType === 'SLM' && (
                         <button onClick={() => setSlmCols(slmCols + 1)} className="bg-white border border-red-200 text-red-700 px-3 py-1 text-xs rounded hover:bg-red-100 flex items-center gap-1 font-bold"><Icons.Plus /> Kolom SLM</button>
                      )}
                    </div>
-                   <div className="flex-1 overflow-auto">
-                     <table className="w-full text-sm text-center border-collapse">
-                       <thead className="bg-gray-100 text-gray-700 sticky top-0 z-10 shadow-sm">
+                   
+                   <div className="flex-1 overflow-auto print:overflow-visible">
+                     <table className="w-full text-sm text-center border-collapse print:border-gray-800">
+                       <thead className="bg-gray-100 text-gray-700 sticky top-0 z-10 shadow-sm print:static print:bg-gray-200">
                          <tr>
-                           <th rowSpan="2" className="border border-gray-200 p-2 min-w-[200px] sticky left-0 bg-gray-100 z-20 text-left">Nama Siswa</th>
+                           <th rowSpan="2" className="border border-gray-200 print:border-gray-800 p-2 min-w-[200px] sticky left-0 bg-gray-100 print:bg-gray-200 z-20 text-left">Nama Siswa</th>
                            {selectedType === 'SLM' ? (
                               Array.from({length: slmCols}).map((_, i) => (
-                                 <th key={`h-${i}`} colSpan="3" className="border border-gray-200 p-1 bg-slate-200 text-slate-800">SLM Ke-{i+1}</th>
+                                 <th key={`h-${i}`} colSpan="3" className="border border-gray-200 print:border-gray-800 p-1 bg-slate-200 text-slate-800">SLM Ke-{i+1}</th>
                               ))
                            ) : (
-                              <th colSpan="3" className="border border-gray-200 p-1 bg-slate-200 text-slate-800">Nilai {selectedType}</th>
+                              <th colSpan="3" className="border border-gray-200 print:border-gray-800 p-1 bg-slate-200 text-slate-800">Nilai {selectedType}</th>
                            )}
                          </tr>
                          <tr>
                            {selectedType === 'SLM' ? (
                               Array.from({length: slmCols}).map((_, i) => (
                                  <React.Fragment key={`sub-${i}`}>
-                                    <th className="border border-gray-200 p-1 bg-gray-50 text-xs w-20">Asli</th>
-                                    <th className="border border-gray-200 p-1 bg-yellow-50 text-yellow-800 text-xs w-20">Remed</th>
-                                    <th className="border border-gray-200 p-1 bg-green-50 text-green-800 text-xs w-20">Katrol</th>
+                                    <th className="border border-gray-200 print:border-gray-800 p-1 bg-gray-50 text-xs w-20">Asli</th>
+                                    <th className="border border-gray-200 print:border-gray-800 p-1 bg-yellow-50 text-yellow-800 text-xs w-20">Remed</th>
+                                    <th className="border border-gray-200 print:border-gray-800 p-1 bg-green-50 text-green-800 text-xs w-20">Katrol</th>
                                  </React.Fragment>
                               ))
                            ) : (
                               <React.Fragment>
-                                 <th className="border border-gray-200 p-1 bg-gray-50 text-xs w-24">Nilai Asli</th>
-                                 <th className="border border-gray-200 p-1 bg-yellow-50 text-yellow-800 text-xs w-24">Nilai Remedial</th>
-                                 <th className="border border-gray-200 p-1 bg-green-50 text-green-800 text-xs w-24">Nilai Akhir (Katrol)</th>
+                                 <th className="border border-gray-200 print:border-gray-800 p-1 bg-gray-50 text-xs w-24">Nilai Asli</th>
+                                 <th className="border border-gray-200 print:border-gray-800 p-1 bg-yellow-50 text-yellow-800 text-xs w-24">Nilai Remedial</th>
+                                 <th className="border border-gray-200 print:border-gray-800 p-1 bg-green-50 text-green-800 text-xs w-24">Nilai Akhir (Katrol)</th>
                               </React.Fragment>
                            )}
                          </tr>
@@ -1856,26 +1883,30 @@
                        <tbody>
                          {classStudents.map((student, idx) => {
                             const data = tempRemedial[student.id] || (selectedType==='SLM'? {slm:[]} : {original:'', remedial:'', final:''});
+                            
+                            // Check jika data kosong sepenuhnya (untuk print view, biar tidak ngeprint tabel kosong semua kalau tidak mau)
+                            // Namun untuk konsistensi form, kita biarkan saja nampak semua siswa.
+                            
                             return (
                               <tr key={student.id} className="hover:bg-gray-50/50">
-                                <td className="border border-gray-200 p-2 text-left font-medium sticky left-0 bg-white z-10">{idx+1}. {student.name}</td>
+                                <td className="border border-gray-200 print:border-gray-800 p-2 text-left font-medium sticky left-0 bg-white print:bg-transparent z-10">{idx+1}. {student.name}</td>
                                 
                                 {selectedType === 'SLM' ? (
                                    Array.from({length: slmCols}).map((_, i) => {
                                       const d = (data.slm || [])[i] || {};
                                       return (
                                         <React.Fragment key={`col-${i}`}>
-                                           <td className="border border-gray-200 p-1"><input type="number" className="w-full text-center p-1 outline-none" value={d.original||''} onChange={e=>handleChange(student.id, 'original', e.target.value, i)} /></td>
-                                           <td className="border border-gray-200 p-1 bg-yellow-50/30"><input type="number" className="w-full text-center p-1 outline-none bg-transparent" value={d.remedial||''} onChange={e=>handleChange(student.id, 'remedial', e.target.value, i)} /></td>
-                                           <td className="border border-gray-200 p-1 bg-green-50/30"><input type="number" className="w-full text-center p-1 outline-none bg-transparent font-bold text-green-700" value={d.final||''} onChange={e=>handleChange(student.id, 'final', e.target.value, i)} /></td>
+                                           <td className="border border-gray-200 print:border-gray-800 p-1 print:p-2"><input type="number" className="w-full text-center p-1 outline-none print:hidden" value={d.original||''} onChange={e=>handleChange(student.id, 'original', e.target.value, i)} /><span className="hidden print:inline">{d.original||'-'}</span></td>
+                                           <td className="border border-gray-200 print:border-gray-800 p-1 bg-yellow-50/30 print:p-2"><input type="number" className="w-full text-center p-1 outline-none bg-transparent print:hidden" value={d.remedial||''} onChange={e=>handleChange(student.id, 'remedial', e.target.value, i)} /><span className="hidden print:inline">{d.remedial||'-'}</span></td>
+                                           <td className="border border-gray-200 print:border-gray-800 p-1 bg-green-50/30 print:p-2"><input type="number" className="w-full text-center p-1 outline-none bg-transparent font-bold text-green-700 print:hidden" value={d.final||''} onChange={e=>handleChange(student.id, 'final', e.target.value, i)} /><span className="hidden print:inline font-bold">{d.final||'-'}</span></td>
                                         </React.Fragment>
                                       )
                                    })
                                 ) : (
                                    <React.Fragment>
-                                      <td className="border border-gray-200 p-1"><input type="number" className="w-full text-center p-1 rounded outline-none" value={data.original||''} onChange={e=>handleChange(student.id, 'original', e.target.value)} /></td>
-                                      <td className="border border-gray-200 p-1 bg-yellow-50/30"><input type="number" className="w-full text-center p-1 rounded outline-none bg-transparent" value={data.remedial||''} onChange={e=>handleChange(student.id, 'remedial', e.target.value)} /></td>
-                                      <td className="border border-gray-200 p-1 bg-green-50/30"><input type="number" className="w-full text-center p-1 rounded outline-none bg-transparent font-bold text-green-700" value={data.final||''} onChange={e=>handleChange(student.id, 'final', e.target.value)} /></td>
+                                      <td className="border border-gray-200 print:border-gray-800 p-1 print:p-2"><input type="number" className="w-full text-center p-1 rounded outline-none print:hidden" value={data.original||''} onChange={e=>handleChange(student.id, 'original', e.target.value)} /><span className="hidden print:inline">{data.original||'-'}</span></td>
+                                      <td className="border border-gray-200 print:border-gray-800 p-1 bg-yellow-50/30 print:p-2"><input type="number" className="w-full text-center p-1 rounded outline-none bg-transparent print:hidden" value={data.remedial||''} onChange={e=>handleChange(student.id, 'remedial', e.target.value)} /><span className="hidden print:inline">{data.remedial||'-'}</span></td>
+                                      <td className="border border-gray-200 print:border-gray-800 p-1 bg-green-50/30 print:p-2"><input type="number" className="w-full text-center p-1 rounded outline-none bg-transparent font-bold text-green-700 print:hidden" value={data.final||''} onChange={e=>handleChange(student.id, 'final', e.target.value)} /><span className="hidden print:inline font-bold">{data.final||'-'}</span></td>
                                    </React.Fragment>
                                 )}
                               </tr>
@@ -1884,6 +1915,17 @@
                        </tbody>
                      </table>
                    </div>
+                   
+                   <div className="hidden print:flex justify-end mt-12">
+                      <div className="text-center w-64">
+                        <p>Mengetahui,</p>
+                        <p>Guru Mata Pelajaran</p>
+                        <div className="h-24"></div>
+                        <p className="font-bold underline">{currentTeacher?.name || '..................................'}</p>
+                        <p>NIP. {currentTeacher?.nip || '........................'}</p>
+                      </div>
+                   </div>
+                   
                  </div>
                ) : (
                   <div className="flex-1 flex items-center justify-center bg-white rounded-xl border border-gray-200 border-dashed">
