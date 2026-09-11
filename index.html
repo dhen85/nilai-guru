@@ -51,9 +51,9 @@
   <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
     import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, getDocs, query, limit } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    import { getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, getDocs, query, limit, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-    window.FirebaseAPI = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, getDocs, query, limit };
+    window.FirebaseAPI = { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, getDocs, query, limit, where };
   </script>
 
   <script type="text/babel" data-type="module">
@@ -62,7 +62,7 @@
         clearInterval(initAppInterval);
         
         const { useState, useEffect, useMemo } = React;
-        const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, getDocs, query, limit } = window.FirebaseAPI;
+        const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, getFirestore, doc, setDoc, onSnapshot, collection, addDoc, updateDoc, deleteDoc, getDocs, query, limit, where } = window.FirebaseAPI;
 
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
           apiKey: "AIzaSyAmlyheyJTeeIkKDP8V_65R3DJfah_ERG8",
@@ -127,7 +127,7 @@
             setTimeout(() => setToastMessage(''), 3000);
           };
 
-          // Global Data States
+          // Global Data States (Hanya Master Data untuk menghemat kuota Read)
           const [settings, setSettings] = useState({ 
             schoolName: "SMA Negeri 1 Nusantara", 
             address: "Jl. Pendidikan No. 1", 
@@ -140,12 +140,8 @@
           const [subjects, setSubjects] = useState([]);
           const [students, setStudents] = useState([]);
           const [teachers, setTeachers] = useState([]);
-          
-          // Transactional Data States
-          const [grades, setGrades] = useState([]);
           const [objectives, setObjectives] = useState([]);
           const [kktps, setKktps] = useState([]);
-          const [remedials, setRemedials] = useState([]);
           
           const [currentTeacher, setCurrentTeacher] = useState(null);
           const [loginData, setLoginData] = useState({ username: '', password: '' });
@@ -175,18 +171,15 @@
           }, []);
 
           const setupSubscriptions = () => {
-            // Subscribe to base collections
+            // Subscribe HANYA ke master data. Data transaksional (grades, remedials) difetch secara lokal.
             const collections = [
               { name: 'settings', setter: (data) => { if (data.length > 0) setSettings(prev => ({...prev, ...data[0]})) } },
               { name: 'classes', setter: setClasses },
               { name: 'subjects', setter: setSubjects },
               { name: 'students', setter: setStudents },
               { name: 'teachers', setter: setTeachers },
-              // Data transaksional tetap di-load global agar tidak merombak arsitektur terlalu ekstrim
-              { name: 'grades', setter: setGrades },
               { name: 'objectives', setter: setObjectives },
-              { name: 'kktps', setter: setKktps },
-              { name: 'remedials', setter: setRemedials }
+              { name: 'kktps', setter: setKktps }
             ];
 
             collections.forEach(({name, setter}) => {
@@ -263,9 +256,6 @@
                       </form>
                     </div>
                   </div>
-                  <div className="text-center pb-4 pt-8">
-                    <p className="text-xs font-medium text-gray-500">Sistem Pengolahan Nilai Sumatif by pagurudan & AI</p>
-                  </div>
                 </div>
               </div>
             );
@@ -276,13 +266,13 @@
               {role === 'admin' ? (
                 <AdminPortal 
                   settings={settings} classes={classes} subjects={subjects} 
-                  students={students} grades={grades} teachers={teachers} objectives={objectives} kktps={kktps} showToast={showToast}
+                  students={students} teachers={teachers} objectives={objectives} kktps={kktps} showToast={showToast}
                   onLogout={() => { setRole(null); setLoginData({username: '', password: ''}); setCurrentTeacher(null); }} 
                 />
               ) : (
                 <TeacherPortal 
                   settings={settings} classes={classes} subjects={subjects} 
-                  students={students} grades={grades} objectives={objectives} kktps={kktps} remedials={remedials}
+                  students={students} objectives={objectives} kktps={kktps}
                   teachers={teachers} currentTeacher={currentTeacher} showToast={showToast}
                   onLogout={() => { setRole(null); setLoginData({username: '', password: ''}); setCurrentTeacher(null); }} 
                 />
@@ -292,7 +282,7 @@
           );
         }
 
-        function AdminPortal({ settings, classes, subjects, students, grades, teachers, objectives, kktps, showToast, onLogout }) {
+        function AdminPortal({ settings, classes, subjects, students, teachers, objectives, kktps, showToast, onLogout }) {
           const [activeTab, setActiveTab] = useState('settings');
 
           const navItems = [
@@ -341,8 +331,8 @@
                 <div className="p-6 overflow-auto flex-1">
                   {activeTab === 'settings' && <AdminSettings settings={settings} showToast={showToast} />}
                   {activeTab === 'master' && <AdminMasterData classes={classes} subjects={subjects} students={students} teachers={teachers} showToast={showToast} />}
-                  {activeTab === 'monitor' && <AdminMonitor grades={grades} classes={classes} subjects={subjects} teachers={teachers} />}
-                  {activeTab === 'leger' && <AdminLeger settings={settings} classes={classes} subjects={subjects} students={students} teachers={teachers} currentTeacher={null} />}
+                  {activeTab === 'monitor' && <AdminMonitor classes={classes} subjects={subjects} teachers={teachers} />}
+                  {activeTab === 'leger' && <AdminLeger settings={settings} classes={classes} subjects={subjects} students={students} teachers={teachers} objectives={objectives} currentTeacher={null} />}
                 </div>
               </main>
             </div>
@@ -805,7 +795,16 @@
           );
         }
 
-        function AdminMonitor({ grades, classes, subjects, teachers }) {
+        function AdminMonitor({ classes, subjects, teachers }) {
+          const [grades, setGrades] = useState([]);
+          
+          useEffect(() => {
+             // Admin menarik seluruh nilai hanya 1x saat komponen di-mount.
+             getDocs(getColRef('grades')).then(snap => {
+                setGrades(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+             });
+          }, []);
+
           const inputStatus = useMemo(() => {
             const status = [];
             classes.forEach(c => {
@@ -891,10 +890,25 @@
           return (finalNlm * wSLM) + (sts * wSTS) + (sas * wSAS);
         }
 
-        function AdminLeger({ settings, classes, subjects, students, teachers, grades, objectives, currentTeacher }) {
+        function AdminLeger({ settings, classes, subjects, students, teachers, objectives, currentTeacher }) {
           const [selectedClass, setSelectedClass] = useState('');
           const [selectedSubject, setSelectedSubject] = useState('');
           
+          const [grades, setGrades] = useState([]);
+          const [loadingGrades, setLoadingGrades] = useState(false);
+
+          // Fetch Lokal Khusus Kelas yang Dipilih
+          useEffect(() => {
+             if (!selectedClass) { setGrades([]); return; }
+             setLoadingGrades(true);
+             let qList = [where('classId', '==', selectedClass)];
+             if (selectedSubject) qList.push(where('subjectId', '==', selectedSubject));
+             getDocs(query(getColRef('grades'), ...qList)).then(snap => {
+                 setGrades(snap.docs.map(d => ({id: d.id, ...d.data()})));
+                 setLoadingGrades(false);
+             });
+          }, [selectedClass, selectedSubject]);
+
           // Filter data berdasarkan currentTeacher (Jika diakses oleh Guru)
           const availableSubjects = useMemo(() => {
             if (!currentTeacher) return subjects; // Admin melihat semua
@@ -977,12 +991,12 @@
                     {availableSubjects.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
                   </select>
                 </div>
-                <button onClick={() => window.print()} disabled={!selectedClass || (currentTeacher && !selectedSubject)} className="flex items-center gap-2 bg-slate-800 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-slate-900 disabled:opacity-50 transition-colors">
-                  <Icons.Printer /> Cetak PDF
+                <button onClick={() => window.print()} disabled={!selectedClass || (currentTeacher && !selectedSubject) || loadingGrades} className="flex items-center gap-2 bg-slate-800 text-white px-6 py-2.5 rounded-lg font-semibold hover:bg-slate-900 disabled:opacity-50 transition-colors">
+                  <Icons.Printer /> {loadingGrades ? 'Memuat...' : 'Cetak PDF'}
                 </button>
               </div>
 
-              {selectedClass && (!currentTeacher || (currentTeacher && selectedSubject)) && (
+              {selectedClass && (!currentTeacher || (currentTeacher && selectedSubject)) && !loadingGrades && (
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8 print:p-0 print:border-none print:shadow-none">
                   <div className="text-center mb-6 pb-4 border-b-2 border-gray-800">
                     <h1 className="text-2xl font-bold uppercase tracking-wider whitespace-nowrap">{settings.schoolName}</h1>
@@ -1101,7 +1115,7 @@
           );
         }
 
-        function TeacherPortal({ settings, classes, subjects, students, grades, objectives, teachers, kktps, remedials, currentTeacher, showToast, onLogout }) {
+        function TeacherPortal({ settings, classes, subjects, students, objectives, teachers, kktps, currentTeacher, showToast, onLogout }) {
           const [activeTab, setActiveTab] = useState('tp');
           
           const navItems = [
@@ -1111,7 +1125,7 @@
             { id: 'input_slm', label: 'Nilai SLM', icon: Icons.Book },
             { id: 'input_sts', label: 'Nilai STS', icon: Icons.Book },
             { id: 'input_sas', label: 'Nilai SAS', icon: Icons.Book },
-            { id: 'remedial', label: 'Remedial', icon: Icons.Plus },
+            { id: 'remedial', label: 'Remedial (Otomatis)', icon: Icons.Plus },
             { id: 'rekap', label: 'Rekap Nilai', icon: Icons.Database },
             { id: 'leger', label: 'Cetak Leger', icon: Icons.Printer },
           ];
@@ -1162,14 +1176,14 @@
 
                 <div className="p-6 flex-1 flex flex-col overflow-hidden">
                   {activeTab === 'tp' && <TeacherObjectives subjects={subjects} classes={classes} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
-                  {activeTab === 'input_tugas' && <TeacherInputGrades mode="tugas" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
-                  {activeTab === 'input_ket' && <TeacherInputGrades mode="keterampilan" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
-                  {activeTab === 'input_slm' && <TeacherInputGrades mode="slm" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
-                  {activeTab === 'input_sts' && <TeacherInputGrades mode="sts" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
-                  {activeTab === 'input_sas' && <TeacherInputGrades mode="sas" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
-                  {activeTab === 'remedial' && <TeacherRemedial classes={classes} subjects={subjects} students={students} remedials={remedials} currentTeacher={currentTeacher} showToast={showToast} />}
-                  {activeTab === 'rekap' && <TeacherInputGrades mode="rekap" settings={settings} classes={classes} subjects={subjects} students={students} grades={grades} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
-                  {activeTab === 'leger' && <AdminLeger settings={settings} classes={classes} subjects={subjects} students={students} teachers={teachers} currentTeacher={currentTeacher} grades={grades} objectives={objectives} />}
+                  {activeTab === 'input_tugas' && <TeacherInputGrades mode="tugas" settings={settings} classes={classes} subjects={subjects} students={students} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
+                  {activeTab === 'input_ket' && <TeacherInputGrades mode="keterampilan" settings={settings} classes={classes} subjects={subjects} students={students} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
+                  {activeTab === 'input_slm' && <TeacherInputGrades mode="slm" settings={settings} classes={classes} subjects={subjects} students={students} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
+                  {activeTab === 'input_sts' && <TeacherInputGrades mode="sts" settings={settings} classes={classes} subjects={subjects} students={students} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
+                  {activeTab === 'input_sas' && <TeacherInputGrades mode="sas" settings={settings} classes={classes} subjects={subjects} students={students} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
+                  {activeTab === 'remedial' && <TeacherRemedial classes={classes} subjects={subjects} students={students} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
+                  {activeTab === 'rekap' && <TeacherInputGrades mode="rekap" settings={settings} classes={classes} subjects={subjects} students={students} objectives={objectives} kktps={kktps} currentTeacher={currentTeacher} showToast={showToast} />}
+                  {activeTab === 'leger' && <AdminLeger settings={settings} classes={classes} subjects={subjects} students={students} teachers={teachers} currentTeacher={currentTeacher} objectives={objectives} />}
                 </div>
               </main>
             </div>
@@ -1359,12 +1373,14 @@
           );
         }
 
-        function TeacherInputGrades({ mode, settings, classes, subjects, students, grades, objectives, kktps, currentTeacher, showToast }) {
+        function TeacherInputGrades({ mode, settings, classes, subjects, students, objectives, kktps, currentTeacher, showToast }) {
           const [selectedSubject, setSelectedSubject] = useState('');
           const [selectedClass, setSelectedClass] = useState('');
           const [cols, setCols] = useState({ tugas: 1, keterampilan: 1, slm: 1 });
           const [tempGrades, setTempGrades] = useState({});
           const [saving, setSaving] = useState(false);
+          const [localGrades, setLocalGrades] = useState([]);
+          const [localRemedials, setLocalRemedials] = useState([]);
 
           // Filtering Dropdown (Dependent Assignment)
           const availableSubjects = useMemo(() => {
@@ -1377,6 +1393,21 @@
              const classIds = (currentTeacher?.assignments || []).find(a => a.subjectId === selectedSubject)?.classIds || [];
              return classes.filter(c => classIds.includes(c.id)).sort((a,b)=>a.name.localeCompare(b.name));
           }, [classes, currentTeacher, selectedSubject]);
+
+          // Fetch Lokal Data secara Real-Time Saat Kelas & Mapel Dipilih (Solusi Ketahanan Firebase)
+          useEffect(() => {
+             if (!selectedClass || !selectedSubject) return;
+             const fetchLocal = async () => {
+                const qG = query(getColRef('grades'), where('classId', '==', selectedClass), where('subjectId', '==', selectedSubject));
+                const snapG = await getDocs(qG);
+                setLocalGrades(snapG.docs.map(d => ({id: d.id, ...d.data()})));
+                
+                const qR = query(getColRef('remedials'), where('classId', '==', selectedClass), where('subjectId', '==', selectedSubject));
+                const snapR = await getDocs(qR);
+                setLocalRemedials(snapR.docs.map(d => ({id: d.id, ...d.data()})));
+             };
+             fetchLocal();
+          }, [selectedClass, selectedSubject]);
 
           // Urut Abjad
           const classStudents = useMemo(() => students.filter(s => s.classId === selectedClass).sort((a,b) => (a.name||'').localeCompare(b.name||'')), [students, selectedClass]);
@@ -1399,7 +1430,7 @@
             let maxTugas = 1, maxKet = 1, maxSlm = 1;
 
             classStudents.forEach(student => {
-              const existing = grades.find(g => g.studentId === student.id && g.subjectId === selectedSubject && g.classId === selectedClass);
+              const existing = localGrades.find(g => g.studentId === student.id);
               if (existing) {
                 // Konversi null kembali ke string kosong untuk UI input
                 const parseArr = (arr) => (arr||[]).map(v => v === null ? '' : v);
@@ -1422,7 +1453,7 @@
 
             setTempGrades(newTemp);
             setCols({ tugas: Math.max(1, maxTugas), keterampilan: Math.max(1, maxKet), slm: Math.max(1, maxSlm) });
-          }, [selectedClass, selectedSubject, classStudents, grades]);
+          }, [selectedClass, selectedSubject, classStudents, localGrades]);
 
           const handleGradeChange = (studentId, category, index, value) => {
             setTempGrades(prev => {
@@ -1469,6 +1500,12 @@
               });
 
               await Promise.all(promises);
+              
+              // Refresh state
+              const qG = query(getColRef('grades'), where('classId', '==', selectedClass), where('subjectId', '==', selectedSubject));
+              const snapG = await getDocs(qG);
+              setLocalGrades(snapG.docs.map(d => ({id: d.id, ...d.data()})));
+                 
               showToast("Seluruh Nilai Berhasil Disimpan");
             } catch (e) { console.error(e); }
             setSaving(false);
@@ -1516,9 +1553,14 @@
                          {mode === 'rekap' && <div className="text-sm text-gray-600 font-medium px-2 py-1">Rekapitulasi Nilai Akhir Siswa</div>}
                          {(mode === 'sts' || mode === 'sas') && <div className="text-sm text-gray-600 font-medium px-2 py-1">Input Nilai {mode.toUpperCase()}</div>}
                       </div>
-                      {mode === 'rekap' && currentKktp && (
-                         <div className="text-xs font-semibold text-gray-500 bg-gray-200 px-3 py-1.5 rounded-md">KKTP: {currentKktp.kktp}</div>
-                      )}
+                      <div className="flex gap-4">
+                         {(mode === 'slm' || mode === 'sts' || mode === 'sas' || mode === 'rekap') && (
+                            <div className="text-xs font-semibold flex items-center gap-2"><span className="w-3 h-3 bg-yellow-200 rounded block border border-yellow-400"></span> Hasil Remedial</div>
+                         )}
+                         {mode === 'rekap' && currentKktp && (
+                            <div className="text-xs font-semibold text-gray-500 bg-gray-200 px-3 py-1.5 rounded-md">KKTP: {currentKktp.kktp}</div>
+                         )}
+                      </div>
                     </div>
                     
                     <div className="flex-1 overflow-auto">
@@ -1609,28 +1651,41 @@
                                 ))}
                                 {mode === 'rekap' && <td className="border border-gray-200 p-2 text-center bg-orange-50/30 font-medium">{avgK.toFixed(1)}</td>}
                                 
-                                {mode === 'slm' && Array.from({length: cols.slm}).map((_, i) => (
+                                {mode === 'slm' && Array.from({length: cols.slm}).map((_, i) => {
+                                  const isRemed = localRemedials.some(r => r.studentId === student.id && r.type === 'SLM' && r.index === i && r.final !== '');
+                                  return (
                                   <td key={`s-${i}`} className="border border-gray-200 p-1">
-                                    <input type="number" min="0" max="100" className="w-full text-center p-1 rounded border-transparent focus:border-purple-500 focus:ring-1 focus:ring-purple-500 bg-transparent hover:bg-gray-50 outline-none transition-colors"
+                                    <input type="number" min="0" max="100" 
+                                      className={`w-full text-center p-1 rounded border-transparent focus:border-purple-500 focus:ring-1 focus:ring-purple-500 outline-none transition-colors ${isRemed ? 'bg-yellow-200 font-bold text-yellow-900' : 'bg-transparent hover:bg-gray-50'}`}
                                       value={data.slm[i] !== undefined ? data.slm[i] : ''} onChange={e => handleGradeChange(student.id, 'slm', i, e.target.value)} />
                                   </td>
-                                ))}
+                                  )
+                                })}
                                 {mode === 'rekap' && <td className="border border-gray-200 p-2 text-center bg-purple-50/30 font-medium">{avgS.toFixed(1)}</td>}
                                 
-                                {(mode === 'sts' || mode === 'rekap') && (
+                                {(mode === 'sts' || mode === 'rekap') && (() => {
+                                  const isRemed = localRemedials.some(r => r.studentId === student.id && r.type === 'STS' && r.final !== '');
+                                  return (
                                   <td className="border border-gray-200 p-1">
-                                    {mode === 'rekap' ? <div className="p-1 font-bold text-green-700">{data.sts || 0}</div> :
-                                    <input type="number" min="0" max="100" className="w-full text-center p-1 rounded border-transparent focus:border-green-500 focus:ring-1 focus:ring-green-500 font-bold text-green-700 bg-transparent hover:bg-green-50 outline-none"
+                                    {mode === 'rekap' ? <div className={`p-1 font-bold ${isRemed ? 'text-yellow-700 bg-yellow-100 rounded' : 'text-green-700'}`}>{data.sts || 0}</div> :
+                                    <input type="number" min="0" max="100" 
+                                      className={`w-full text-center p-1 rounded border-transparent focus:border-green-500 focus:ring-1 focus:ring-green-500 font-bold outline-none ${isRemed ? 'bg-yellow-200 text-yellow-900' : 'text-green-700 bg-transparent hover:bg-green-50'}`}
                                       value={data.sts} onChange={e => handleGradeChange(student.id, 'sts', null, e.target.value)} />}
                                   </td>
-                                )}
-                                {(mode === 'sas' || mode === 'rekap') && (
+                                  )
+                                })()}
+
+                                {(mode === 'sas' || mode === 'rekap') && (() => {
+                                  const isRemed = localRemedials.some(r => r.studentId === student.id && r.type === 'SAS' && r.final !== '');
+                                  return (
                                   <td className="border border-gray-200 p-1">
-                                    {mode === 'rekap' ? <div className="p-1 font-bold text-green-700">{data.sas || 0}</div> :
-                                    <input type="number" min="0" max="100" className="w-full text-center p-1 rounded border-transparent focus:border-green-500 focus:ring-1 focus:ring-green-500 font-bold text-green-700 bg-transparent hover:bg-green-50 outline-none"
+                                    {mode === 'rekap' ? <div className={`p-1 font-bold ${isRemed ? 'text-yellow-700 bg-yellow-100 rounded' : 'text-green-700'}`}>{data.sas || 0}</div> :
+                                    <input type="number" min="0" max="100" 
+                                      className={`w-full text-center p-1 rounded border-transparent focus:border-green-500 focus:ring-1 focus:ring-green-500 font-bold outline-none ${isRemed ? 'bg-yellow-200 text-yellow-900' : 'text-green-700 bg-transparent hover:bg-green-50'}`}
                                       value={data.sas} onChange={e => handleGradeChange(student.id, 'sas', null, e.target.value)} />}
                                   </td>
-                                )}
+                                  )
+                                })()}
                                 
                                 {mode === 'rekap' && (
                                   <td className="border border-gray-200 p-2 font-bold text-lg bg-gray-50 shadow-[-1px_0_0_0_#e5e7eb]">
@@ -1659,7 +1714,7 @@
           );
         }
 
-        function TeacherRemedial({ classes, subjects, students, remedials, currentTeacher, showToast }) {
+        function TeacherRemedial({ classes, subjects, students, kktps, currentTeacher, showToast }) {
           const [selectedType, setSelectedType] = useState('SLM'); 
           const [slmCols, setSlmCols] = useState(1);
           const [selectedSubject, setSelectedSubject] = useState('');
@@ -1685,30 +1740,80 @@
           
           const [tempRemedial, setTempRemedial] = useState({});
           const [saving, setSaving] = useState(false);
+          const [localGrades, setLocalGrades] = useState([]);
+          const [localRemedials, setLocalRemedials] = useState([]);
+          const [refreshData, setRefreshData] = useState(0);
 
+          // Fetch Lokal (Solusi Kuota Firebase)
+          useEffect(() => {
+             if (!selectedClass || !selectedSubject) return;
+             const fetchLocal = async () => {
+                const qG = query(getColRef('grades'), where('classId', '==', selectedClass), where('subjectId', '==', selectedSubject));
+                const snapG = await getDocs(qG);
+                setLocalGrades(snapG.docs.map(d => ({id: d.id, ...d.data()})));
+                
+                const qR = query(getColRef('remedials'), where('classId', '==', selectedClass), where('subjectId', '==', selectedSubject));
+                const snapR = await getDocs(qR);
+                setLocalRemedials(snapR.docs.map(d => ({id: d.id, ...d.data()})));
+             };
+             fetchLocal();
+          }, [selectedClass, selectedSubject, refreshData]);
+
+          // Logika Otomatisasi Remedial
           useEffect(() => {
              if (!selectedClass || !selectedSubject) return;
              const newTemp = {};
              let maxSlm = 1;
              
+             const kktpSetting = kktps.find(k => k.classId === selectedClass && k.subjectId === selectedSubject);
+             const threshold = kktpSetting ? Number(kktpSetting.kktp) : 75; // Default 75 jika belum disetel
+             
              classStudents.forEach(student => {
-                const recs = remedials.filter(r => r.studentId === student.id && r.subjectId === selectedSubject && r.classId === selectedClass && r.type === selectedType);
+                const gradeDoc = localGrades.find(g => g.studentId === student.id);
+                const remedDocs = localRemedials.filter(r => r.studentId === student.id && r.type === selectedType);
+                
                 if (selectedType === 'SLM') {
                    const slmData = [];
-                   recs.forEach(r => {
-                      slmData[r.index] = { original: r.original, remedial: r.remedial, final: r.final, id: r.id };
-                      maxSlm = Math.max(maxSlm, r.index + 1);
+                   const slmArr = gradeDoc?.slm || [];
+                   let needsRemedial = false;
+
+                   slmArr.forEach((val, i) => {
+                      // Cek jika nilai asli ada dan di bawah KKTP
+                      if (val !== null && val !== '' && Number(val) < threshold) {
+                         const existing = remedDocs.find(r => r.index === i);
+                         slmData[i] = {
+                            original: val,
+                            remedial: existing?.remedial || '',
+                            final: existing?.final || '',
+                            id: existing?.id || null,
+                            gradeDocId: gradeDoc.id
+                         };
+                         needsRemedial = true;
+                      } else {
+                         slmData[i] = null; // Tidak butuh remedial untuk TP ini
+                      }
+                      maxSlm = Math.max(maxSlm, i + 1);
                    });
-                   newTemp[student.id] = { slm: slmData };
+
+                   if (needsRemedial) newTemp[student.id] = { slm: slmData };
+
                 } else {
-                   const r = recs[0];
-                   if (r) newTemp[student.id] = { original: r.original, remedial: r.remedial, final: r.final, id: r.id };
-                   else newTemp[student.id] = { original: '', remedial: '', final: '' };
+                   const val = gradeDoc ? gradeDoc[selectedType.toLowerCase()] : null;
+                   if (val !== null && val !== '' && Number(val) < threshold) {
+                      const existing = remedDocs[0];
+                      newTemp[student.id] = { 
+                         original: val, 
+                         remedial: existing?.remedial || '', 
+                         final: existing?.final || '', 
+                         id: existing?.id || null,
+                         gradeDocId: gradeDoc.id
+                      };
+                   }
                 }
              });
              setTempRemedial(newTemp);
              if (selectedType === 'SLM') setSlmCols(Math.max(1, maxSlm));
-          }, [selectedClass, selectedSubject, selectedType, classStudents, remedials]);
+          }, [selectedClass, selectedSubject, selectedType, classStudents, localGrades, localRemedials, kktps]);
 
           const hitungKatrol = (nilaiRemed) => {
              if (!nilaiRemed) return '';
@@ -1743,38 +1848,69 @@
              setSaving(true);
              try {
                 const promises = [];
-                classStudents.forEach(student => {
-                   const data = tempRemedial[student.id];
-                   if(!data) return;
-
+                Object.entries(tempRemedial).forEach(([studentId, data]) => {
                    if (selectedType === 'SLM') {
+                      let gradeUpdates = {};
+                      let hasGradeUpdate = false;
+                      let gradeDocId = null;
+
                       (data.slm || []).forEach((item, idx) => {
-                         if (!item) return;
-                         const payload = {
-                            studentId: student.id, classId: selectedClass, subjectId: selectedSubject,
-                            type: 'SLM', index: idx, original: item.original || '', remedial: item.remedial || '', final: item.final || ''
-                         };
-                         if (item.original || item.remedial || item.final) {
+                         if (!item) return; // Lewati yang tidak butuh remedial
+                         gradeDocId = item.gradeDocId || gradeDocId;
+                         
+                         // Jika guru menginput nilai remedial/katrol
+                         if (item.remedial !== '' || item.final !== '') {
+                            const payload = {
+                               studentId, classId: selectedClass, subjectId: selectedSubject,
+                               type: 'SLM', index: idx, original: item.original || '', remedial: item.remedial || '', final: item.final || ''
+                            };
                             if (item.id) promises.push(updateDoc(getDocRef('remedials', item.id), payload));
                             else promises.push(addDoc(getColRef('remedials'), payload));
+                            
+                            // Ubah nilai di database Utama (grades)
+                            if (item.final !== '') {
+                               if (!gradeUpdates.slm) {
+                                  const currentGrade = localGrades.find(g => g.id === item.gradeDocId);
+                                  gradeUpdates.slm = [...(currentGrade?.slm || [])];
+                               }
+                               gradeUpdates.slm[idx] = Number(item.final);
+                               hasGradeUpdate = true;
+                            }
                          }
                       });
-                   } else {
-                      const payload = {
-                         studentId: student.id, classId: selectedClass, subjectId: selectedSubject,
-                         type: selectedType, original: data.original || '', remedial: data.remedial || '', final: data.final || ''
-                      };
-                      if (data.original || data.remedial || data.final) {
+                      
+                      // Simpan update ke tabel Grades
+                      if (hasGradeUpdate && gradeDocId) {
+                         promises.push(updateDoc(getDocRef('grades', gradeDocId), gradeUpdates));
+                      }
+                      
+                   } else { // STS atau SAS
+                      if (data.remedial !== '' || data.final !== '') {
+                         const payload = {
+                            studentId, classId: selectedClass, subjectId: selectedSubject,
+                            type: selectedType, original: data.original || '', remedial: data.remedial || '', final: data.final || ''
+                         };
                          if (data.id) promises.push(updateDoc(getDocRef('remedials', data.id), payload));
                          else promises.push(addDoc(getColRef('remedials'), payload));
+                         
+                         // Ubah nilai di database Utama (grades)
+                         if (data.final !== '' && data.gradeDocId) {
+                            promises.push(updateDoc(getDocRef('grades', data.gradeDocId), {
+                               [selectedType.toLowerCase()]: Number(data.final)
+                            }));
+                         }
                       }
                    }
                 });
+                
                 await Promise.all(promises);
-                showToast("Data Remedial Berhasil Disimpan");
+                showToast("Data Remedial Tersimpan & Nilai Induk Diperbarui");
+                setRefreshData(prev => prev + 1); // Segarkan antarmuka
              } catch (e) { console.error(e); }
              setSaving(false);
           };
+
+          const studentsNeedingRemedial = classStudents.filter(s => tempRemedial[s.id]);
 
           return (
             <div className="flex flex-col h-full space-y-4 animate-in fade-in duration-300">
@@ -1796,7 +1932,7 @@
                     </select>
                  </div>
                  <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-1">Jenis Remedial</label>
+                    <label className="block text-sm font-bold text-gray-700 mb-1">Jenis Asesmen</label>
                     <select className="w-full border border-gray-300 rounded-lg p-2 outline-none h-[42px]"
                       value={selectedType} onChange={e => setSelectedType(e.target.value)}>
                       <option value="SLM">Sumatif Lingkup Materi (SLM)</option>
@@ -1835,12 +1971,10 @@
                       </div>
                    </div>
 
-                   <div className="p-3 border-b border-gray-200 bg-red-50 text-red-700 font-semibold text-sm shrink-0 flex justify-between items-center print:hidden">
-                     <span>Catatan: Nilai Remedial dihitung otomatis berdasarkan rentang katrol yang disetel.</span>
-                     {selectedType === 'SLM' && (
-                        <button onClick={() => setSlmCols(slmCols + 1)} className="bg-white border border-red-200 text-red-700 px-3 py-1 text-xs rounded hover:bg-red-100 flex items-center gap-1 font-bold"><Icons.Plus /> Kolom SLM</button>
-                     )}
+                   <div className="p-3 border-b border-gray-200 bg-red-50 text-red-700 font-semibold text-sm shrink-0 flex flex-wrap justify-between items-center print:hidden gap-2">
+                     <span>Daftar Siswa di bawah KKTP. Nilai Induk akan tertimpa saat Anda menekan tombol Simpan Remedial.</span>
                    </div>
+                   
                    <div className="flex-1 overflow-auto print:overflow-visible">
                      <table className="w-full text-sm text-center border-collapse border border-gray-800">
                        <thead className="bg-gray-100 text-gray-700 sticky top-0 z-10 print:static print:bg-gray-200">
@@ -1873,28 +2007,42 @@
                          </tr>
                        </thead>
                        <tbody>
-                         {classStudents.map((student, idx) => {
-                            const data = tempRemedial[student.id] || (selectedType==='SLM'? {slm:[]} : {original:'', remedial:'', final:''});
+                         {studentsNeedingRemedial.length === 0 ? (
+                           <tr>
+                             <td colSpan="100%" className="p-10 text-center font-medium text-gray-500 border border-gray-200">
+                               🎉 Hebat! Tidak ada siswa yang nilainya di bawah KKTP untuk asesmen ini.
+                             </td>
+                           </tr>
+                         ) : (
+                           studentsNeedingRemedial.map((student, idx) => {
+                            const data = tempRemedial[student.id];
                             return (
                               <tr key={student.id} className="hover:bg-gray-50/50">
                                 <td className="border border-gray-800 p-2 text-left font-medium sticky left-0 bg-white print:static z-10">{idx+1}. {student.name}</td>
                                 
                                 {selectedType === 'SLM' ? (
                                    Array.from({length: slmCols}).map((_, i) => {
-                                      const d = (data.slm || [])[i] || {};
+                                      const d = (data.slm || [])[i];
+                                      if (!d) return (
+                                         <React.Fragment key={`col-blank-${i}`}>
+                                            <td className="border border-gray-800 bg-gray-100 print:bg-gray-50 p-1"></td>
+                                            <td className="border border-gray-800 bg-gray-100 print:bg-gray-50 p-1"></td>
+                                            <td className="border border-gray-800 bg-gray-100 print:bg-gray-50 p-1"></td>
+                                         </React.Fragment>
+                                      );
                                       return (
                                         <React.Fragment key={`col-${i}`}>
                                            <td className="border border-gray-800 p-1">
                                               <span className="hidden print:inline">{d.original||'-'}</span>
-                                              <input type="number" className="w-full text-center p-1 outline-none print:hidden" value={d.original||''} onChange={e=>handleChange(student.id, 'original', e.target.value, i)} />
+                                              <input type="number" className="w-full text-center p-1 outline-none font-bold text-red-600 print:hidden" value={d.original||''} disabled title="Nilai Asli dari Induk" />
                                            </td>
-                                           <td className="border border-gray-800 p-1 bg-yellow-50/30">
+                                           <td className="border border-gray-800 p-1 bg-yellow-50/50 hover:bg-yellow-100/80 transition-colors cursor-pointer">
                                               <span className="hidden print:inline">{d.remedial||'-'}</span>
-                                              <input type="number" className="w-full text-center p-1 outline-none bg-transparent print:hidden" value={d.remedial||''} onChange={e=>handleChange(student.id, 'remedial', e.target.value, i)} />
+                                              <input type="number" className="w-full text-center p-1 outline-none bg-transparent print:hidden" placeholder="0" value={d.remedial||''} onChange={e=>handleChange(student.id, 'remedial', e.target.value, i)} />
                                            </td>
-                                           <td className="border border-gray-800 p-1 bg-green-50/30 font-bold text-green-700 print:text-black">
+                                           <td className="border border-gray-800 p-1 bg-green-50/50 hover:bg-green-100/80 transition-colors cursor-pointer font-bold text-green-700 print:text-black">
                                               <span className="hidden print:inline">{d.final||'-'}</span>
-                                              <input type="number" className="w-full text-center p-1 outline-none bg-transparent font-bold print:hidden" value={d.final||''} onChange={e=>handleChange(student.id, 'final', e.target.value, i)} />
+                                              <input type="number" className="w-full text-center p-1 outline-none bg-transparent print:hidden" placeholder="0" value={d.final||''} onChange={e=>handleChange(student.id, 'final', e.target.value, i)} />
                                            </td>
                                         </React.Fragment>
                                       )
@@ -1903,21 +2051,22 @@
                                    <React.Fragment>
                                       <td className="border border-gray-800 p-1">
                                          <span className="hidden print:inline">{data.original||'-'}</span>
-                                         <input type="number" className="w-full text-center p-1 outline-none print:hidden" value={data.original||''} onChange={e=>handleChange(student.id, 'original', e.target.value)} />
+                                         <input type="number" className="w-full text-center p-1 outline-none font-bold text-red-600 print:hidden" value={data.original||''} disabled title="Nilai Asli dari Induk" />
                                       </td>
-                                      <td className="border border-gray-800 p-1 bg-yellow-50/30">
+                                      <td className="border border-gray-800 p-1 bg-yellow-50/50 hover:bg-yellow-100/80 transition-colors cursor-pointer">
                                          <span className="hidden print:inline">{data.remedial||'-'}</span>
-                                         <input type="number" className="w-full text-center p-1 outline-none bg-transparent print:hidden" value={data.remedial||''} onChange={e=>handleChange(student.id, 'remedial', e.target.value)} />
+                                         <input type="number" className="w-full text-center p-1 outline-none bg-transparent print:hidden" placeholder="0" value={data.remedial||''} onChange={e=>handleChange(student.id, 'remedial', e.target.value)} />
                                       </td>
-                                      <td className="border border-gray-800 p-1 bg-green-50/30 font-bold text-green-700 print:text-black">
+                                      <td className="border border-gray-800 p-1 bg-green-50/50 hover:bg-green-100/80 transition-colors cursor-pointer font-bold text-green-700 print:text-black">
                                          <span className="hidden print:inline">{data.final||'-'}</span>
-                                         <input type="number" className="w-full text-center p-1 outline-none bg-transparent font-bold print:hidden" value={data.final||''} onChange={e=>handleChange(student.id, 'final', e.target.value)} />
+                                         <input type="number" className="w-full text-center p-1 outline-none bg-transparent print:hidden" placeholder="0" value={data.final||''} onChange={e=>handleChange(student.id, 'final', e.target.value)} />
                                       </td>
                                    </React.Fragment>
                                 )}
                               </tr>
                             )
-                         })}
+                           })
+                         )}
                        </tbody>
                      </table>
                    </div>
@@ -1936,7 +2085,7 @@
                  </div>
                ) : (
                   <div className="flex-1 flex items-center justify-center bg-white rounded-xl border border-gray-200 border-dashed p-10">
-                    <p className="text-gray-400 text-lg font-medium">Silakan pilih Mapel & Kelas.</p>
+                    <p className="text-gray-400 text-lg font-medium">Silakan pilih Mapel & Kelas untuk mengelola Remedial Otomatis.</p>
                   </div>
                )}
             </div>
